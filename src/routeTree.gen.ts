@@ -9,38 +9,149 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
+import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AppNotificationsRouteImport } from './routes/_app.notifications'
+import { Route as AppInterventionRouteImport } from './routes/_app.intervention'
+import { Route as AppEquipmentRouteImport } from './routes/_app.equipment'
+import { Route as AppDocumentsRouteImport } from './routes/_app.documents'
+import { Route as AppDashboardRouteImport } from './routes/_app.dashboard'
+import { Route as AppEquipmentIdRouteImport } from './routes/_app.equipment.$id'
 
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppRoute = AppRouteImport.update({
+  id: '/_app',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppNotificationsRoute = AppNotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppInterventionRoute = AppInterventionRouteImport.update({
+  id: '/intervention',
+  path: '/intervention',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppEquipmentRoute = AppEquipmentRouteImport.update({
+  id: '/equipment',
+  path: '/equipment',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppDocumentsRoute = AppDocumentsRouteImport.update({
+  id: '/documents',
+  path: '/documents',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppDashboardRoute = AppDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppEquipmentIdRoute = AppEquipmentIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => AppEquipmentRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/dashboard': typeof AppDashboardRoute
+  '/documents': typeof AppDocumentsRoute
+  '/equipment': typeof AppEquipmentRouteWithChildren
+  '/intervention': typeof AppInterventionRoute
+  '/notifications': typeof AppNotificationsRoute
+  '/equipment/$id': typeof AppEquipmentIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/dashboard': typeof AppDashboardRoute
+  '/documents': typeof AppDocumentsRoute
+  '/equipment': typeof AppEquipmentRouteWithChildren
+  '/intervention': typeof AppInterventionRoute
+  '/notifications': typeof AppNotificationsRoute
+  '/equipment/$id': typeof AppEquipmentIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_app': typeof AppRouteWithChildren
+  '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/_app/dashboard': typeof AppDashboardRoute
+  '/_app/documents': typeof AppDocumentsRoute
+  '/_app/equipment': typeof AppEquipmentRouteWithChildren
+  '/_app/intervention': typeof AppInterventionRoute
+  '/_app/notifications': typeof AppNotificationsRoute
+  '/_app/equipment/$id': typeof AppEquipmentIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/sitemap.xml'
+    | '/dashboard'
+    | '/documents'
+    | '/equipment'
+    | '/intervention'
+    | '/notifications'
+    | '/equipment/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/sitemap.xml'
+    | '/dashboard'
+    | '/documents'
+    | '/equipment'
+    | '/intervention'
+    | '/notifications'
+    | '/equipment/$id'
+  id:
+    | '__root__'
+    | '/'
+    | '/_app'
+    | '/sitemap.xml'
+    | '/_app/dashboard'
+    | '/_app/documents'
+    | '/_app/equipment'
+    | '/_app/intervention'
+    | '/_app/notifications'
+    | '/_app/equipment/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AppRoute: typeof AppRouteWithChildren
+  SitemapDotxmlRoute: typeof SitemapDotxmlRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_app': {
+      id: '/_app'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,12 +159,96 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_app/notifications': {
+      id: '/_app/notifications'
+      path: '/notifications'
+      fullPath: '/notifications'
+      preLoaderRoute: typeof AppNotificationsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/intervention': {
+      id: '/_app/intervention'
+      path: '/intervention'
+      fullPath: '/intervention'
+      preLoaderRoute: typeof AppInterventionRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/equipment': {
+      id: '/_app/equipment'
+      path: '/equipment'
+      fullPath: '/equipment'
+      preLoaderRoute: typeof AppEquipmentRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/documents': {
+      id: '/_app/documents'
+      path: '/documents'
+      fullPath: '/documents'
+      preLoaderRoute: typeof AppDocumentsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/dashboard': {
+      id: '/_app/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof AppDashboardRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/equipment/$id': {
+      id: '/_app/equipment/$id'
+      path: '/$id'
+      fullPath: '/equipment/$id'
+      preLoaderRoute: typeof AppEquipmentIdRouteImport
+      parentRoute: typeof AppEquipmentRoute
+    }
   }
 }
 
+interface AppEquipmentRouteChildren {
+  AppEquipmentIdRoute: typeof AppEquipmentIdRoute
+}
+
+const AppEquipmentRouteChildren: AppEquipmentRouteChildren = {
+  AppEquipmentIdRoute: AppEquipmentIdRoute,
+}
+
+const AppEquipmentRouteWithChildren = AppEquipmentRoute._addFileChildren(
+  AppEquipmentRouteChildren,
+)
+
+interface AppRouteChildren {
+  AppDashboardRoute: typeof AppDashboardRoute
+  AppDocumentsRoute: typeof AppDocumentsRoute
+  AppEquipmentRoute: typeof AppEquipmentRouteWithChildren
+  AppInterventionRoute: typeof AppInterventionRoute
+  AppNotificationsRoute: typeof AppNotificationsRoute
+}
+
+const AppRouteChildren: AppRouteChildren = {
+  AppDashboardRoute: AppDashboardRoute,
+  AppDocumentsRoute: AppDocumentsRoute,
+  AppEquipmentRoute: AppEquipmentRouteWithChildren,
+  AppInterventionRoute: AppInterventionRoute,
+  AppNotificationsRoute: AppNotificationsRoute,
+}
+
+const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AppRoute: AppRouteWithChildren,
+  SitemapDotxmlRoute: SitemapDotxmlRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
