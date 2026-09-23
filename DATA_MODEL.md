@@ -1,153 +1,160 @@
-# Modèle de données — MVP
+# Modèle de données — MVP (v2)
 
-> Modèle conceptuel/logique, indépendant du moteur de base de données (le choix du moteur — Postgres, SQLite/D1, etc. — est une décision séparée, pas encore prise).
-> Périmètre : MVP tel que défini dans `ROADMAP.md` §3. Tout ce qui est volontairement exclu est listé en fin de document avec la raison.
-> Dernière mise à jour : 2026-07-10.
+> v2 du 2026-09-23 : fusion de `DATA_MODEL.md` v1 (juillet) et de `SCOPE.md`. En cas de divergence, **SCOPE.md fait foi**.
+> Moteur retenu : **PostgreSQL via Supabase** (Auth + Storage + RLS).
+> Implémentation : `supabase/migrations/ (3 migrations Phase 0 : init_schema, security_hardening, private_schema)`.
 
 --------------------------------------------------
 
-## Décision structurante : multi-tenant
+## Décisions structurantes
 
-La plateforme héberge plusieurs entreprises clientes (organisations) sur une même instance. **Toute entité métier porte donc un `organization_id`**, et toute requête applicative doit filtrer par organisation — c'est la règle de sécurité n°1 de ce modèle : l'oubli d'un filtre `organization_id` est une fuite de données entre clients, pas un simple bug.
+1. **Multi-tenant** : toute table métier porte `organization_id`. Oublier ce filtre = fuite de données entre clients.
+2. **L'isolation est garantie par la base (RLS)**, pas par le code applicatif. Le client (navigateur) parle directement à Supabase : seule la base est une barrière fiable.
+3. **`organization_id` n'est jamais envoyé par le client** : il a pour `DEFAULT private.current_org_id()`, déduit de la session.
+4. **FK composites `(organization_id, x_id)`** : impossible de lier une intervention d'une organisation à l'équipement d'une autre, même en cas de bug applicatif.
+5. **Règles métier critiques dans des triggers** : transitions de statut, historique, audit, notifications d'assignation.
+
+--------------------------------------------------
+
+## Ce qui a changé par rapport à la v1
+
+| Sujet | v1 | v2 | Raison |
+|---|---|---|---|
+| Rôles | admin / superviseur / technicien / lecteur | `admin` / `manager` / `technician` / `viewer` | Alignement SCOPE, noms anglais dans le code |
+| Utilisateur | table `User` avec `role` et `password_hash` | `auth.users` (Supabase) + `profiles` + `memberships(role)` | Supabase gère les mots de passe ; le rôle est séparé du profil pour qu'un utilisateur ne puisse pas s'auto-promouvoir |
+| Statut équipement | operational / warning / critical / maintenance | `in_service` / `broken_down` / `out_of_service` | SCOPE. « Warning » (préventif échu, dérive) devient une **donnée dérivée**, pas un statut saisi |
+| Équipement | code, nom, zone, criticité | + `category`, `location` (ex-zone), `commissioned_on` | SCOPE |
+| Statut intervention | open / in_progress / closed | `todo` / `in_progress` / `done` / `cancelled` | SCOPE (ajout de l'annulation) |
+| Intervention | titre + checklist | + `type`, `priority`, `description`, `due_date`, rapport de clôture | SCOPE |
+| Historique des statuts | ❌ | `intervention_status_history` (trigger) | SCOPE — traçabilité |
+| Checklist | `status` pending/active/done par étape | `completed_at` seulement ; l'étape « active » est dérivée | Ne pas stocker ce qui se calcule |
+| Document | statut draft/valid/obsolete | supprimé ; `expires_on` ajouté | Workflow = phase 2 ; expiration = MVP (SCOPE) |
+| Liens document | équipement seulement | `document_equipment` + `document_interventions` | SCOPE |
+| Notifications | exclues | table `notifications` | SCOPE |
+
+--------------------------------------------------
+
+## Schéma
+
+```
+auth.users ─1:1─ profiles
+     │
+     └─1:1 (MVP)─ memberships ─N:1─ organizations
+                   (role)              │
+        ┌───────────────┬──────────────┼──────────────────┬──────────────┐
+        ▼               ▼              ▼                  ▼              ▼
+    equipment   document_categories  notifications    audit_log     (toutes les tables
+        │               │            (user_id)       (générique)     portent organization_id)
+        │1:N            │1:N
+        ▼               ▼
+  interventions ◄──N:N── documents ──N:N──► equipment
+     │      │   (document_interventions)   (document_equipment)
+     │1:N   │1:N
+     ▼      ▼
+  steps   status_history
+```
 
 --------------------------------------------------
 
 ## Entités
 
-### Organization
+### organizations
+`id` · `name` · `created_at`
+
+### profiles
+`id` (= auth.users.id) · `full_name` · timestamps. Créé automatiquement à l'inscription.
+
+### memberships
+`user_id` · `organization_id` · `role` (`app_role`) · `deleted_at`.
+`UNIQUE(user_id)` = une organisation par utilisateur au MVP. Retirer la contrainte suffira pour le multi-organisations.
+
+### equipment
 | Champ | Type | Contrainte |
 |---|---|---|
-| id | UUID | PK |
+| code | text | unique par organisation (insensible à la casse, hors supprimés) |
 | name | text | not null |
-| created_at | timestamp | not null |
+| category | text | nullable — texte libre au MVP |
+| location | text | nullable — texte libre (hiérarchie Site/Zone = phase 2) |
+| status | enum | `in_service` \| `broken_down` \| `out_of_service` |
+| criticality | smallint | 1–3 |
+| commissioned_on | date | nullable |
+| deleted_at | timestamptz | suppression logique (pas de DELETE autorisé) |
 
-### User
+### interventions
 | Champ | Type | Contrainte |
 |---|---|---|
-| id | UUID | PK |
-| organization_id | UUID | FK → Organization, not null |
-| email | text | unique (global), not null |
-| name | text | not null |
-| role | enum | `admin` \| `superviseur` \| `technicien` \| `lecteur` |
-| password_hash | text | nullable (selon fournisseur d'auth retenu) |
-| created_at | timestamp | not null |
-| deleted_at | timestamp | nullable (soft delete) |
+| equipment_id | uuid | FK composite vers equipment |
+| type | enum | `corrective` \| `preventive` |
+| priority | enum | `low` \| `normal` \| `high` \| `urgent` |
+| status | enum | `todo` → `in_progress` → `done` ; `cancelled` depuis todo/in_progress |
+| title, description | text | |
+| assigned_to | uuid | FK auth.users, nullable |
+| due_date | date | nullable |
+| started_at, completed_at | timestamptz | **renseignés par trigger** |
+| work_performed, duration_minutes, parts_used | | rapport ; `work_performed` obligatoire pour passer à `done` |
 
-### DocumentCategory
+### intervention_status_history
+`from_status` · `to_status` · `changed_by` · `changed_at`. Écrite uniquement par trigger.
+
+### intervention_steps
+`position` · `title` · `completed_by` · `completed_at`. Optionnelle.
+
+### document_categories
+Table par organisation (6 catégories par défaut créées à l'onboarding : Manuel, Procédure, Certificat, Rapport, Plan, Contrat).
+
+### documents
 | Champ | Type | Contrainte |
 |---|---|---|
-| id | UUID | PK |
-| organization_id | UUID | FK → Organization, not null |
-| name | text | not null |
-| | | unique (organization_id, name) |
+| category_id | uuid | FK composite |
+| name | text | |
+| storage_path | text | `{organization_id}/{document_id}/{fichier}` — vérifié par CHECK |
+| mime_type, size_bytes | | ≤ 50 Mo |
+| expires_on | date | nullable (certificats, contrôles réglementaires) |
+| deleted_at | timestamptz | suppression logique |
 
-### Document
-| Champ | Type | Contrainte |
-|---|---|---|
-| id | UUID | PK |
-| organization_id | UUID | FK → Organization, not null |
-| category_id | UUID | FK → DocumentCategory, not null |
-| name | text | not null |
-| file_key | text | not null (pointeur vers le stockage objet) |
-| file_type | text | not null |
-| file_size | integer | not null |
-| status | enum | `draft` \| `valid` \| `obsolete` |
-| uploaded_by | UUID | FK → User, not null |
-| created_at | timestamp | not null |
-| updated_at | timestamp | not null |
-| deleted_at | timestamp | nullable (soft delete) |
+### document_equipment / document_interventions
+Tables de jonction, PK composites. Deux tables plutôt qu'une table polymorphe `DocumentLink` : vraies FK, pas de colonnes nullables, pas de CHECK « exactement une des deux ».
 
-### DocumentEquipment (table de jonction N—N)
-| Champ | Type | Contrainte |
-|---|---|---|
-| document_id | UUID | FK → Document |
-| equipment_id | UUID | FK → Equipment |
-| | | PK composite (document_id, equipment_id) |
+### notifications
+`user_id` · `type` (`intervention_assigned` \| `intervention_overdue` \| `document_expiring`) · `entity_type` · `entity_id` · `message` · `read_at`.
 
-Un document peut couvrir plusieurs équipements (ex : une procédure générique pour tous les compresseurs), un équipement peut avoir plusieurs documents. D'où la table de jonction plutôt qu'une FK directe.
-
-### Equipment
-| Champ | Type | Contrainte |
-|---|---|---|
-| id | UUID | PK |
-| organization_id | UUID | FK → Organization, not null |
-| code | text | not null, unique (organization_id, code) |
-| name | text | not null |
-| zone | text | nullable — texte libre pour le MVP (voir exclusions) |
-| criticality | smallint | 1, 2 ou 3 |
-| status | enum | `operational` \| `warning` \| `critical` \| `maintenance` |
-| created_at | timestamp | not null |
-| updated_at | timestamp | not null |
-| deleted_at | timestamp | nullable (soft delete) |
-
-### Intervention (ordre de travail)
-| Champ | Type | Contrainte |
-|---|---|---|
-| id | UUID | PK |
-| organization_id | UUID | FK → Organization, not null |
-| equipment_id | UUID | FK → Equipment, not null |
-| title | text | not null |
-| status | enum | `open` \| `in_progress` \| `closed` |
-| assigned_to | UUID | FK → User, nullable |
-| started_at | timestamp | nullable |
-| closed_at | timestamp | nullable |
-| created_at | timestamp | not null |
-
-### InterventionStep
-| Champ | Type | Contrainte |
-|---|---|---|
-| id | UUID | PK |
-| intervention_id | UUID | FK → Intervention, not null |
-| position | integer | not null (ordre d'affichage) |
-| title | text | not null |
-| status | enum | `pending` \| `active` \| `done` |
-| completed_by | UUID | FK → User, nullable |
-| completed_at | timestamp | nullable |
-
-### AuditLog
-| Champ | Type | Contrainte |
-|---|---|---|
-| id | UUID | PK |
-| organization_id | UUID | FK → Organization, not null |
-| user_id | UUID | FK → User, nullable (nullable si action système) |
-| action | text | ex: `created`, `updated`, `deleted`, `signed` |
-| entity_type | text | ex: `document`, `equipment`, `intervention` |
-| entity_id | UUID | not null |
-| metadata | json | nullable (diff avant/après, contexte) |
-| created_at | timestamp | not null |
+### audit_log
+`user_id` · `action` (insert/update/delete) · `entity_type` · `entity_id` · `changes` (jsonb : ligne complète à la création, diff `{old,new}` à la modification). Alimenté par trigger sur equipment, interventions, documents.
 
 --------------------------------------------------
 
-## Cardinalités — résumé
+## Permissions (RLS)
 
-- Organization 1—N { User, Equipment, DocumentCategory, Document, Intervention, AuditLog }
-- DocumentCategory 1—N Document
-- Document N—N Equipment (via DocumentEquipment)
-- Equipment 1—N Intervention
-- Intervention 1—N InterventionStep
-- User 1—N Intervention (assigned_to), 1—N Document (uploaded_by), 1—N InterventionStep (completed_by), 1—N AuditLog
+| | admin | manager | technician | viewer |
+|---|---|---|---|---|
+| Lire les données de son organisation | ✅ | ✅ | ✅ | ✅ |
+| Créer / modifier équipements | ✅ | ✅ | ❌ | ❌ |
+| Créer / assigner interventions | ✅ | ✅ | ❌ | ❌ |
+| Faire avancer **son** intervention + rapport | ✅ | ✅ | ✅ (statut et rapport uniquement) | ❌ |
+| Déposer des documents | ✅ | ✅ | ✅ | ❌ |
+| Modifier documents | ✅ | ✅ | ❌ | ❌ |
+| Gérer catégories, rôles | ✅ | ❌ | ❌ | ❌ |
+| Lire le journal d'audit | ✅ | ✅ | ❌ | ❌ |
+| Notifications | les siennes uniquement | | | |
 
---------------------------------------------------
-
-## Choix de conception et justifications
-
-- **Clés primaires en UUID plutôt qu'en entier auto-incrémenté.** En multi-tenant, des IDs séquentiels globaux permettent de deviner le volume de données d'un client (`/equipment/1248` laisse deviner qu'il y a ~1248 équipements) et facilitent l'énumération d'IDs d'un autre tenant (IDOR). Les UUID évitent ces deux problèmes et simplifient une future fusion/export de données entre environnements.
-- **Soft delete (`deleted_at`) plutôt que suppression physique** sur les entités métier (User, Document, Equipment). La traçabilité et l'historique sont un pilier explicite de la vision produit (`CLAUDE.md` — "Base de données : Historique, Audit, Versionning") : une suppression physique casse l'audit trail et les références passées (ex: un `AuditLog` qui pointe vers un équipement supprimé). Ce n'est pas de la sur-ingénierie : c'est une exigence du produit, pas une anticipation spéculative.
-- **`role` en enum sur `User` plutôt qu'un système de permissions à table séparée.** Le MVP (`ROADMAP.md` §3) demande des "permissions minimales" — un rôle par utilisateur suffit. Un vrai moteur RBAC (permissions fines par site/catégorie) est explicitement en backlog §4 ; l'introduire maintenant serait une abstraction prématurée sans cas d'usage validé (YAGNI).
-- **`DocumentCategory` en table plutôt qu'en enum figé.** Contrairement au rôle utilisateur, la catégorisation documentaire est cœur de valeur produit (c'est un GED) et varie probablement d'une entreprise à l'autre — le coût de la modéliser en table est minime (une table, une FK) pour un vrai gain de flexibilité dès le MVP.
-- **`zone` en simple champ texte sur `Equipment`, pas de hiérarchie Site/Zone/Ligne normalisée.** La UI actuelle affiche déjà des zones (`"Atelier B · Ligne 4"`) mais toujours comme texte. Normaliser cette hiérarchie est utile (filtres, permissions par site) mais n'est pas requis par le MVP — c'est en backlog §4 ("Arborescence de parc"). Le champ texte est un chemin de migration simple : on pourra l'remplacer par une FK vers une table `Zone` sans perdre de données, une fois le besoin confirmé.
-- **`AuditLog` générique (`entity_type` + `entity_id`) plutôt qu'une table de log par entité.** Évite de dupliquer la même structure 5 fois ; `entity_type`/`entity_id` est un compromis classique quand le besoin (tracer *toute* action sur *toute* entité) est transverse dès le départ.
+Fichiers : bucket privé `documents`, accès par URL signée, policy Storage sur le premier segment du chemin (= `organization_id`).
 
 --------------------------------------------------
 
-## Volontairement exclu du MVP (voir `ROADMAP.md` §4 backlog)
+## Index
 
-- Hiérarchie Site → Zone → Ligne normalisée (actuellement : simple texte)
-- Versionning de documents (numéro de révision, historique des versions, rollback)
-- Workflow de validation multi-niveaux (brouillon → relecture → approuvé)
-- Signature électronique
-- RBAC fin (permissions par site/catégorie, délégation temporaire)
-- Table de notifications dédiée (règles, canaux)
-- Modèles de checklist réutilisables (pour l'instant, les étapes d'intervention sont propres à chaque intervention)
+Toujours préfixés par `organization_id` : `(organization_id, status)` équipements, `(organization_id, status, due_date)` interventions, `(organization_id, expires_on)` documents, `(user_id) WHERE read_at IS NULL` notifications. Recherche par nom/code : index trigram (`pg_trgm`) pour `ILIKE '%…%'`.
 
-Ces exclusions ne sont pas des oublis — les ajouter maintenant demanderait de modéliser des cas d'usage qu'on n'a pas encore validés avec un vrai utilisateur. Elles seront ajoutées quand leur phase respective (`ROADMAP.md` §5) démarrera.
+--------------------------------------------------
+
+## Vérification
+
+Testé sur PostgreSQL 16 avec un shim Supabase (11 scénarios) : isolation entre organisations, FK cross-tenant rejetée, viewer en lecture seule, technicien limité au statut/rapport, `done` impossible sans rapport, états terminaux, historique et audit automatiques, un admin ne peut pas changer son propre rôle, chemin Storage/document hors organisation rejeté.
+
+--------------------------------------------------
+
+## Pas encore couvert (étapes suivantes)
+
+- **Invitations** : ajouter un utilisateur à une organisation existante (Edge Function + email).
+- **Notifications « en retard » / « expire bientôt »** : job planifié quotidien (`pg_cron`).
+- **Hiérarchie Site → Zone**, versionning, workflow de validation, pièces détachées : phase 2 (voir `ROADMAP.md`).
