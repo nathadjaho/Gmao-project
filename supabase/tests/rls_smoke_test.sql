@@ -157,3 +157,24 @@ select pg_temp.fails('chemin de document hors organisation',
          :'cat', :'org2_create_organization' || '/d/x.pdf'));
 select pg_temp.fails('upload Storage dans une autre organisation',
   format('insert into storage.objects (bucket_id, name) values (''documents'', %L)', :'org2_create_organization' || '/x/f.pdf'));
+
+\echo '--- Phase 2 : assignation'
+select id as eq from public.equipment limit 1 \gset
+select pg_temp.fails('assigner à quelqu''un hors de l''organisation',
+  format('insert into public.interventions (equipment_id, title, assigned_to) values (%L, ''x'', %L)',
+         :'eq', '00000000-0000-0000-0000-00000000000b'));
+
+\echo '--- Phase 3 : tableau de bord'
+select pg_temp.check('dashboard : compte le parc de son organisation',
+  (public.dashboard_summary() -> 'equipment' ->> 'total')::int
+  = (select count(*) from public.equipment where deleted_at is null));
+select pg_temp.check('dashboard : intervention annulée non comptée comme ouverte',
+  (public.dashboard_summary() -> 'interventions' ->> 'open')::int = 0);
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000b';
+select pg_temp.check('dashboard : org2 ne voit rien d''org1',
+  (public.dashboard_summary() -> 'equipment' ->> 'total')::int = 0
+  and (public.dashboard_summary() -> 'interventions' ->> 'done_30d')::int = 0);
+reset role;
+set role anon;
+select pg_temp.fails('anonyme : dashboard refusé', 'select public.dashboard_summary()');
+reset role;

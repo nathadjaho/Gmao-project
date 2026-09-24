@@ -586,6 +586,7 @@ export type Database = {
     }
     Functions: {
       create_organization: { Args: { org_name: string }; Returns: string }
+      dashboard_summary: { Args: { p_today?: string }; Returns: Json }
       change_intervention_status: {
         Args: {
           p_intervention_id: string
