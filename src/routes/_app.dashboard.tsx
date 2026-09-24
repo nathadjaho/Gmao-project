@@ -37,7 +37,7 @@ function Dashboard() {
               Exporter rapport
             </button>
             <Link
-              to="/intervention"
+              to="/interventions"
               className="h-9 px-3 rounded-md bg-primary text-primary-foreground text-xs font-semibold inline-flex items-center gap-1.5 hover:bg-primary/90"
             >
               <Wrench className="size-3.5" />

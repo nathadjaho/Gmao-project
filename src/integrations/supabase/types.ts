@@ -231,6 +231,7 @@ export type Database = {
           location: string | null
           name: string
           organization_id: string
+          search_text: string | null
           status: Database["public"]["Enums"]["equipment_status"]
           updated_at: string
         }
@@ -246,6 +247,7 @@ export type Database = {
           location?: string | null
           name: string
           organization_id?: string
+          search_text?: string | null
           status?: Database["public"]["Enums"]["equipment_status"]
           updated_at?: string
         }
@@ -261,6 +263,7 @@ export type Database = {
           location?: string | null
           name?: string
           organization_id?: string
+          search_text?: string | null
           status?: Database["public"]["Enums"]["equipment_status"]
           updated_at?: string
         }
@@ -316,6 +319,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "interventions"
             referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "status_history_changed_by_profile_fk"
+            columns: ["changed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -423,6 +433,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "interventions_assignee_profile_fk"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "interventions_equipment_fk"
             columns: ["organization_id", "equipment_id"]
             isOneToOne: false
@@ -466,6 +483,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "memberships_user_profile_fk"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -535,18 +559,21 @@ export type Database = {
       profiles: {
         Row: {
           created_at: string
+          email: string | null
           full_name: string
           id: string
           updated_at: string
         }
         Insert: {
           created_at?: string
+          email?: string | null
           full_name?: string
           id: string
           updated_at?: string
         }
         Update: {
           created_at?: string
+          email?: string | null
           full_name?: string
           id?: string
           updated_at?: string

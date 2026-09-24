@@ -4,6 +4,14 @@ import type { EquipmentFormValues, EquipmentStatus } from "./equipment-model";
 
 export const EQUIPMENT_PAGE_SIZE = 20;
 
+/** Doit rester alignée sur private.normalize_search() côté base. */
+export function normalizeSearch(v: string): string {
+  return v
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
 export type EquipmentListParams = {
   page: number;
   q?: string;
@@ -26,11 +34,12 @@ async function fetchEquipmentList({ page, q, status }: EquipmentListParams) {
 
   if (status) query = query.eq("status", status);
   if (q) {
-    // Retire les caractères qui ont un sens dans la syntaxe de filtre PostgREST ou dans ILIKE :
-    // la saisie utilisateur reste une simple recherche texte (pas d'injection de filtre).
-    const term = q.replace(/[%_\\,().*"]/g, " ").trim();
-    if (term)
-      query = query.or(`code.ilike.%${term}%,name.ilike.%${term}%,location.ilike.%${term}%`);
+    // Même normalisation que la colonne générée search_text (minuscules, sans accents) :
+    // « generatrice » trouve « Génératrice ». Les jokers ILIKE saisis sont neutralisés.
+    const term = normalizeSearch(q)
+      .replace(/[%_\\]/g, " ")
+      .trim();
+    if (term) query = query.ilike("search_text", `%${term}%`);
   }
 
   const { data, error, count } = await query;

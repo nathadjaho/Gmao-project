@@ -8,7 +8,7 @@ import {
   Bell,
   Search,
   ClipboardCheck,
-  Settings,
+  Users,
   ShieldCheck,
   HelpCircle,
   LogOut,
@@ -20,7 +20,7 @@ import { ROLE_LABELS, initials } from "@/features/auth/roles";
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/equipment", label: "Équipements", icon: Package },
-  { to: "/intervention", label: "Interventions", icon: Wrench },
+  { to: "/interventions", label: "Interventions", icon: Wrench },
   { to: "/documents", label: "Documents", icon: FileText },
   { to: "/notifications", label: "Notifications", icon: Bell },
 ];
@@ -83,10 +83,15 @@ export function AppShell() {
             Système
           </div>
           <Link
-            to="/dashboard"
-            className="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-foreground/70 hover:bg-secondary"
+            to="/team"
+            className={cn(
+              "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-colors",
+              pathname.startsWith("/team")
+                ? "bg-primary text-primary-foreground font-semibold"
+                : "text-foreground/70 hover:bg-secondary hover:text-foreground",
+            )}
           >
-            <Settings className="size-4" strokeWidth={1.8} /> Paramètres
+            <Users className="size-4" strokeWidth={1.8} /> Équipe
           </Link>
           <Link
             to="/dashboard"
@@ -138,13 +143,16 @@ export function AppShell() {
                 ⌘K
               </kbd>
             </div>
-            <Link
-              to="/intervention"
-              className="inline-flex items-center gap-2 h-9 px-3 rounded-md bg-primary text-primary-foreground text-xs font-semibold shadow-sm hover:bg-primary/90 transition-colors"
-            >
-              <ClipboardCheck className="size-3.5" />
-              Nouvelle intervention
-            </Link>
+            {auth.membership.role === "admin" && (
+              <Link
+                to="/interventions"
+                search={{ create: true }}
+                className="inline-flex items-center gap-2 h-9 px-3 rounded-md bg-primary text-primary-foreground text-xs font-semibold shadow-sm hover:bg-primary/90 transition-colors"
+              >
+                <ClipboardCheck className="size-3.5" />
+                Nouvelle intervention
+              </Link>
+            )}
           </div>
         </header>
 

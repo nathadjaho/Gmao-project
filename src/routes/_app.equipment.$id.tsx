@@ -1,12 +1,13 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { ChevronRight, FileText, Pencil, Wrench } from "lucide-react";
+import { ChevronRight, FileText, Pencil, Plus, Wrench } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useIsAdmin } from "@/features/auth/use-auth";
 import { CriticalityDots } from "@/features/equipment/components/CriticalityDots";
 import { EquipmentFormDialog } from "@/features/equipment/components/EquipmentFormDialog";
+import { CreateInterventionDialog } from "@/features/interventions/components/CreateInterventionDialog";
 import { equipmentDetailQuery } from "@/features/equipment/equipment-api";
 import { EQUIPMENT_STATUS } from "@/features/equipment/equipment-model";
 import {
@@ -23,7 +24,9 @@ export const Route = createFileRoute("/_app/equipment/$id")({
 function EquipmentDetail() {
   const { id } = Route.useParams();
   const isAdmin = useIsAdmin();
+  const navigate = useNavigate();
   const [editOpen, setEditOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
   const { data: eq, isPending, isError, error } = useQuery(equipmentDetailQuery(id));
 
   if (isPending) {
@@ -64,12 +67,20 @@ function EquipmentDetail() {
         description={[eq.code, eq.category, eq.location].filter(Boolean).join(" · ")}
         actions={
           isAdmin && (
-            <button
-              onClick={() => setEditOpen(true)}
-              className="h-9 px-3 rounded-md border border-border bg-card text-xs font-semibold inline-flex items-center gap-1.5 hover:bg-secondary"
-            >
-              <Pencil className="size-3.5" /> Modifier
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setEditOpen(true)}
+                className="h-9 px-3 rounded-md border border-border bg-card text-xs font-semibold inline-flex items-center gap-1.5 hover:bg-secondary"
+              >
+                <Pencil className="size-3.5" /> Modifier
+              </button>
+              <button
+                onClick={() => setCreateOpen(true)}
+                className="h-9 px-3 rounded-md bg-primary text-primary-foreground text-xs font-semibold inline-flex items-center gap-1.5 hover:bg-primary/90"
+              >
+                <Plus className="size-3.5" /> Créer une intervention
+              </button>
+            </div>
           )
         }
       />
@@ -109,17 +120,23 @@ function EquipmentDetail() {
           ) : (
             <ul className="divide-y divide-border">
               {eq.interventions.map((i) => (
-                <li key={i.id} className="px-5 py-3 flex items-center gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-semibold truncate">{i.title}</div>
-                    <div className="text-[11px] text-muted-foreground">
-                      {INTERVENTION_TYPE_LABELS[i.type]} · créée le {formatDate(i.created_at)}
-                      {i.due_date && ` · échéance ${formatDate(i.due_date)}`}
+                <li key={i.id}>
+                  <Link
+                    to="/interventions/$id"
+                    params={{ id: i.id }}
+                    className="px-5 py-3 flex items-center gap-4 hover:bg-secondary/30 transition-colors"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-semibold truncate">{i.title}</div>
+                      <div className="text-[11px] text-muted-foreground">
+                        {INTERVENTION_TYPE_LABELS[i.type]} · créée le {formatDate(i.created_at)}
+                        {i.due_date && ` · échéance ${formatDate(i.due_date)}`}
+                      </div>
                     </div>
-                  </div>
-                  <StatusBadge variant={INTERVENTION_STATUS[i.status].badge}>
-                    {INTERVENTION_STATUS[i.status].label}
-                  </StatusBadge>
+                    <StatusBadge variant={INTERVENTION_STATUS[i.status].badge}>
+                      {INTERVENTION_STATUS[i.status].label}
+                    </StatusBadge>
+                  </Link>
                 </li>
               ))}
             </ul>
@@ -159,6 +176,16 @@ function EquipmentDetail() {
       </div>
 
       <EquipmentFormDialog open={editOpen} onOpenChange={setEditOpen} equipment={eq} />
+      {isAdmin && (
+        <CreateInterventionDialog
+          open={createOpen}
+          onOpenChange={setCreateOpen}
+          equipmentId={eq.id}
+          onCreated={(interventionId) =>
+            navigate({ to: "/interventions/$id", params: { id: interventionId } })
+          }
+        />
+      )}
     </div>
   );
 }
