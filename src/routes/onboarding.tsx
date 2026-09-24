@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowRight, Building2 } from "lucide-react";
 import { useState } from "react";
 import { AuthLayout, AuthPending } from "@/features/auth/components/AuthLayout";
-import { FormError, FormField } from "@/features/auth/components/FormField";
+import { FormError, FormField } from "@/components/FormField";
 import { organizationSchema, type OrganizationInput } from "@/features/auth/auth-schemas";
 import { authContextQuery, createOrganization } from "@/features/auth/auth-api";
 

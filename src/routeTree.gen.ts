@@ -16,9 +16,9 @@ import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppNotificationsRouteImport } from './routes/_app.notifications'
 import { Route as AppInterventionRouteImport } from './routes/_app.intervention'
-import { Route as AppEquipmentRouteImport } from './routes/_app.equipment'
 import { Route as AppDocumentsRouteImport } from './routes/_app.documents'
 import { Route as AppDashboardRouteImport } from './routes/_app.dashboard'
+import { Route as AppEquipmentIndexRouteImport } from './routes/_app.equipment.index'
 import { Route as AppEquipmentIdRouteImport } from './routes/_app.equipment.$id'
 
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
@@ -55,11 +55,6 @@ const AppInterventionRoute = AppInterventionRouteImport.update({
   path: '/intervention',
   getParentRoute: () => AppRoute,
 } as any)
-const AppEquipmentRoute = AppEquipmentRouteImport.update({
-  id: '/equipment',
-  path: '/equipment',
-  getParentRoute: () => AppRoute,
-} as any)
 const AppDocumentsRoute = AppDocumentsRouteImport.update({
   id: '/documents',
   path: '/documents',
@@ -70,10 +65,15 @@ const AppDashboardRoute = AppDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AppRoute,
 } as any)
+const AppEquipmentIndexRoute = AppEquipmentIndexRouteImport.update({
+  id: '/equipment/',
+  path: '/equipment/',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppEquipmentIdRoute = AppEquipmentIdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
-  getParentRoute: () => AppEquipmentRoute,
+  id: '/equipment/$id',
+  path: '/equipment/$id',
+  getParentRoute: () => AppRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
@@ -83,10 +83,10 @@ export interface FileRoutesByFullPath {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/dashboard': typeof AppDashboardRoute
   '/documents': typeof AppDocumentsRoute
-  '/equipment': typeof AppEquipmentRouteWithChildren
   '/intervention': typeof AppInterventionRoute
   '/notifications': typeof AppNotificationsRoute
   '/equipment/$id': typeof AppEquipmentIdRoute
+  '/equipment/': typeof AppEquipmentIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -95,10 +95,10 @@ export interface FileRoutesByTo {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/dashboard': typeof AppDashboardRoute
   '/documents': typeof AppDocumentsRoute
-  '/equipment': typeof AppEquipmentRouteWithChildren
   '/intervention': typeof AppInterventionRoute
   '/notifications': typeof AppNotificationsRoute
   '/equipment/$id': typeof AppEquipmentIdRoute
+  '/equipment': typeof AppEquipmentIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -109,10 +109,10 @@ export interface FileRoutesById {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/_app/dashboard': typeof AppDashboardRoute
   '/_app/documents': typeof AppDocumentsRoute
-  '/_app/equipment': typeof AppEquipmentRouteWithChildren
   '/_app/intervention': typeof AppInterventionRoute
   '/_app/notifications': typeof AppNotificationsRoute
   '/_app/equipment/$id': typeof AppEquipmentIdRoute
+  '/_app/equipment/': typeof AppEquipmentIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -123,10 +123,10 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/dashboard'
     | '/documents'
-    | '/equipment'
     | '/intervention'
     | '/notifications'
     | '/equipment/$id'
+    | '/equipment/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -135,10 +135,10 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/dashboard'
     | '/documents'
-    | '/equipment'
     | '/intervention'
     | '/notifications'
     | '/equipment/$id'
+    | '/equipment'
   id:
     | '__root__'
     | '/'
@@ -148,10 +148,10 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/_app/dashboard'
     | '/_app/documents'
-    | '/_app/equipment'
     | '/_app/intervention'
     | '/_app/notifications'
     | '/_app/equipment/$id'
+    | '/_app/equipment/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -213,13 +213,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppInterventionRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/equipment': {
-      id: '/_app/equipment'
-      path: '/equipment'
-      fullPath: '/equipment'
-      preLoaderRoute: typeof AppEquipmentRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/_app/documents': {
       id: '/_app/documents'
       path: '/documents'
@@ -234,42 +227,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDashboardRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/equipment/': {
+      id: '/_app/equipment/'
+      path: '/equipment'
+      fullPath: '/equipment/'
+      preLoaderRoute: typeof AppEquipmentIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/equipment/$id': {
       id: '/_app/equipment/$id'
-      path: '/$id'
+      path: '/equipment/$id'
       fullPath: '/equipment/$id'
       preLoaderRoute: typeof AppEquipmentIdRouteImport
-      parentRoute: typeof AppEquipmentRoute
+      parentRoute: typeof AppRoute
     }
   }
 }
 
-interface AppEquipmentRouteChildren {
-  AppEquipmentIdRoute: typeof AppEquipmentIdRoute
-}
-
-const AppEquipmentRouteChildren: AppEquipmentRouteChildren = {
-  AppEquipmentIdRoute: AppEquipmentIdRoute,
-}
-
-const AppEquipmentRouteWithChildren = AppEquipmentRoute._addFileChildren(
-  AppEquipmentRouteChildren,
-)
-
 interface AppRouteChildren {
   AppDashboardRoute: typeof AppDashboardRoute
   AppDocumentsRoute: typeof AppDocumentsRoute
-  AppEquipmentRoute: typeof AppEquipmentRouteWithChildren
   AppInterventionRoute: typeof AppInterventionRoute
   AppNotificationsRoute: typeof AppNotificationsRoute
+  AppEquipmentIdRoute: typeof AppEquipmentIdRoute
+  AppEquipmentIndexRoute: typeof AppEquipmentIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppDashboardRoute: AppDashboardRoute,
   AppDocumentsRoute: AppDocumentsRoute,
-  AppEquipmentRoute: AppEquipmentRouteWithChildren,
   AppInterventionRoute: AppInterventionRoute,
   AppNotificationsRoute: AppNotificationsRoute,
+  AppEquipmentIdRoute: AppEquipmentIdRoute,
+  AppEquipmentIndexRoute: AppEquipmentIndexRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

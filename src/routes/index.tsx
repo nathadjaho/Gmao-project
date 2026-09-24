@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowRight, Lock } from "lucide-react";
 import { useState } from "react";
 import { AuthLayout, AuthPending } from "@/features/auth/components/AuthLayout";
-import { FormError, FormField } from "@/features/auth/components/FormField";
+import { FormError, FormField } from "@/components/FormField";
 import { loginSchema, type LoginInput } from "@/features/auth/auth-schemas";
 import { authContextQuery, safeRedirectPath, signIn } from "@/features/auth/auth-api";
 

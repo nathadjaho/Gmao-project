@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowRight, MailCheck } from "lucide-react";
 import { useState } from "react";
 import { AuthLayout, AuthPending } from "@/features/auth/components/AuthLayout";
-import { FormError, FormField } from "@/features/auth/components/FormField";
+import { FormError, FormField } from "@/components/FormField";
 import { signupSchema, type SignupInput } from "@/features/auth/auth-schemas";
 import { authContextQuery, signUp } from "@/features/auth/auth-api";
 
