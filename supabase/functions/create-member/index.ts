@@ -59,7 +59,10 @@ Deno.serve(async (req) => {
   const role = body.role === "admin" ? "admin" : "technician";
   if (!EMAIL_RE.test(email)) return json({ error: "Email invalide" }, 400);
   if (fullName.length < 2 || fullName.length > 100) return json({ error: "Nom : 2 à 100 caractères" }, 400);
-  if (password.length < 8 || password.length > 72) return json({ error: "Mot de passe : 8 à 72 caractères" }, 400);
+  // Mêmes règles que passwordSchema côté front : l'API admin de Supabase peut contourner
+  // les exigences du tableau de bord, donc on les revérifie ici.
+  if (password.length < 10 || password.length > 72 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/[0-9]/.test(password))
+    return json({ error: "Mot de passe : 10 à 72 caractères, avec minuscule, majuscule et chiffre" }, 400);
 
   // 4. Création du compte (email marqué confirmé : pas d'email envoyé)
   const { data: created, error: createErr } = await admin.auth.admin.createUser({
