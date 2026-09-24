@@ -1,4 +1,5 @@
-import { Link, Outlet, useRouterState } from "@tanstack/react-router";
+import { Link, Outlet, useNavigate, useRouteContext, useRouterState } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   LayoutDashboard,
   Wrench,
@@ -10,8 +11,11 @@ import {
   Settings,
   ShieldCheck,
   HelpCircle,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { signOut } from "@/features/auth/auth-api";
+import { ROLE_LABELS, initials } from "@/features/auth/roles";
 
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -23,6 +27,15 @@ const navItems = [
 
 export function AppShell() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { auth } = useRouteContext({ from: "/_app" });
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const displayName = auth.fullName || auth.email;
+
+  async function handleSignOut() {
+    await signOut(queryClient);
+    navigate({ to: "/" });
+  }
 
   return (
     <div className="min-h-screen flex bg-background text-foreground">
@@ -33,8 +46,12 @@ export function AppShell() {
             <ShieldCheck className="size-4 text-accent" strokeWidth={2.2} />
           </div>
           <div className="leading-tight">
-            <div className="text-sm font-bold tracking-tight">FORGE<span className="text-accent">OS</span></div>
-            <div className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground">GMAO · v1.0</div>
+            <div className="text-sm font-bold tracking-tight">
+              FORGE<span className="text-accent">OS</span>
+            </div>
+            <div className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground">
+              GMAO · v1.0
+            </div>
           </div>
         </div>
 
@@ -81,15 +98,24 @@ export function AppShell() {
 
         <div className="p-3 border-t border-border">
           <div className="flex items-center gap-2.5 rounded-md p-2 bg-secondary/60">
-            <div className="size-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">
-              ML
+            <div className="size-8 shrink-0 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">
+              {initials(displayName)}
             </div>
-            <div className="leading-tight min-w-0">
-              <div className="text-xs font-semibold truncate">M. Lefebvre</div>
-              <div className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                Chef d'atelier
+            <div className="leading-tight min-w-0 flex-1">
+              <div className="text-xs font-semibold truncate">{displayName}</div>
+              <div className="text-[10px] text-muted-foreground uppercase tracking-wider truncate">
+                {ROLE_LABELS[auth.membership.role]}
               </div>
             </div>
+            <button
+              type="button"
+              onClick={handleSignOut}
+              title="Se déconnecter"
+              aria-label="Se déconnecter"
+              className="size-7 shrink-0 rounded-md inline-flex items-center justify-center text-muted-foreground hover:bg-background hover:text-foreground"
+            >
+              <LogOut className="size-3.5" />
+            </button>
           </div>
         </div>
       </aside>
@@ -98,7 +124,7 @@ export function AppShell() {
       <div className="flex-1 flex flex-col min-w-0">
         <header className="h-14 border-b border-border bg-card/60 backdrop-blur sticky top-0 z-40 flex items-center justify-between px-6">
           <div className="flex items-center gap-3 text-sm">
-            <span className="text-muted-foreground">Atelier Nord</span>
+            <span className="text-muted-foreground">{auth.membership.organization.name}</span>
             <span className="text-border">/</span>
             <span className="font-semibold capitalize">
               {pathname.split("/")[1] || "dashboard"}
@@ -108,7 +134,9 @@ export function AppShell() {
             <div className="hidden md:flex items-center gap-2 h-9 px-3 w-72 rounded-md border border-border bg-background text-xs text-muted-foreground">
               <Search className="size-3.5" />
               Rechercher équipement, OT, document…
-              <kbd className="ml-auto font-mono text-[10px] px-1.5 py-0.5 rounded border border-border bg-card">⌘K</kbd>
+              <kbd className="ml-auto font-mono text-[10px] px-1.5 py-0.5 rounded border border-border bg-card">
+                ⌘K
+              </kbd>
             </div>
             <Link
               to="/intervention"

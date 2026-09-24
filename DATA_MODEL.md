@@ -1,8 +1,9 @@
 # Modèle de données — MVP (v2)
 
+> v2.1 du 2026-09-24 : rôles admin + technician, workflow de validation (statut « soumis »), verrouillage complet, motifs tracés.
 > v2 du 2026-09-23 : fusion de `DATA_MODEL.md` v1 (juillet) et de `SCOPE.md`. En cas de divergence, **SCOPE.md fait foi**.
 > Moteur retenu : **PostgreSQL via Supabase** (Auth + Storage + RLS).
-> Implémentation : `supabase/migrations/ (3 migrations Phase 0 : init_schema, security_hardening, private_schema)`.
+> Implémentation : `supabase/migrations/` (Phase 0 : init_schema, security_hardening, private_schema ; Phase 1 : new_enum_values, roles_and_workflow).
 
 --------------------------------------------------
 
@@ -20,11 +21,11 @@
 
 | Sujet | v1 | v2 | Raison |
 |---|---|---|---|
-| Rôles | admin / superviseur / technicien / lecteur | `admin` / `manager` / `technician` / `viewer` | Alignement SCOPE, noms anglais dans le code |
+| Rôles | admin / superviseur / technicien / lecteur | `admin` / `technician` (v2.1) | Hiérarchie Organisation > Admins > Techniciens ; un rôle lecture seule ou prestataire externe pourra être ajouté sur demande client |
 | Utilisateur | table `User` avec `role` et `password_hash` | `auth.users` (Supabase) + `profiles` + `memberships(role)` | Supabase gère les mots de passe ; le rôle est séparé du profil pour qu'un utilisateur ne puisse pas s'auto-promouvoir |
 | Statut équipement | operational / warning / critical / maintenance | `in_service` / `broken_down` / `out_of_service` | SCOPE. « Warning » (préventif échu, dérive) devient une **donnée dérivée**, pas un statut saisi |
 | Équipement | code, nom, zone, criticité | + `category`, `location` (ex-zone), `commissioned_on` | SCOPE |
-| Statut intervention | open / in_progress / closed | `todo` / `in_progress` / `done` / `cancelled` | SCOPE (ajout de l'annulation) |
+| Statut intervention | open / in_progress / closed | `todo` / `in_progress` / `submitted` / `done` / `cancelled` (v2.1) | SCOPE + validation par l'admin |
 | Intervention | titre + checklist | + `type`, `priority`, `description`, `due_date`, rapport de clôture | SCOPE |
 | Historique des statuts | ❌ | `intervention_status_history` (trigger) | SCOPE — traçabilité |
 | Checklist | `status` pending/active/done par étape | `completed_at` seulement ; l'étape « active » est dérivée | Ne pas stocker ce qui se calcule |
@@ -65,7 +66,7 @@ auth.users ─1:1─ profiles
 `id` (= auth.users.id) · `full_name` · timestamps. Créé automatiquement à l'inscription.
 
 ### memberships
-`user_id` · `organization_id` · `role` (`app_role`) · `deleted_at`.
+`user_id` · `organization_id` · `role` (`admin` | `technician`, défaut `technician`) · `deleted_at`.
 `UNIQUE(user_id)` = une organisation par utilisateur au MVP. Retirer la contrainte suffira pour le multi-organisations.
 
 ### equipment
@@ -86,15 +87,15 @@ auth.users ─1:1─ profiles
 | equipment_id | uuid | FK composite vers equipment |
 | type | enum | `corrective` \| `preventive` |
 | priority | enum | `low` \| `normal` \| `high` \| `urgent` |
-| status | enum | `todo` → `in_progress` → `done` ; `cancelled` depuis todo/in_progress |
+| status | enum | voir « Workflow et verrouillage » |
 | title, description | text | |
 | assigned_to | uuid | FK auth.users, nullable |
 | due_date | date | nullable |
-| started_at, completed_at | timestamptz | **renseignés par trigger** |
-| work_performed, duration_minutes, parts_used | | rapport ; `work_performed` obligatoire pour passer à `done` |
+| started_at, submitted_at, completed_at | timestamptz | **renseignés par trigger** |
+| work_performed, duration_minutes, parts_used | | rapport ; `work_performed` obligatoire pour soumettre |
 
 ### intervention_status_history
-`from_status` · `to_status` · `changed_by` · `changed_at`. Écrite uniquement par trigger.
+`from_status` · `to_status` · `changed_by` · `changed_at` · `reason` (motif : renvoi, annulation, réouverture). Écrite uniquement par trigger.
 
 ### intervention_steps
 `position` · `title` · `completed_by` · `completed_at`. Optionnelle.
@@ -125,17 +126,37 @@ Tables de jonction, PK composites. Deux tables plutôt qu'une table polymorphe `
 
 ## Permissions (RLS)
 
-| | admin | manager | technician | viewer |
-|---|---|---|---|---|
-| Lire les données de son organisation | ✅ | ✅ | ✅ | ✅ |
-| Créer / modifier équipements | ✅ | ✅ | ❌ | ❌ |
-| Créer / assigner interventions | ✅ | ✅ | ❌ | ❌ |
-| Faire avancer **son** intervention + rapport | ✅ | ✅ | ✅ (statut et rapport uniquement) | ❌ |
-| Déposer des documents | ✅ | ✅ | ✅ | ❌ |
-| Modifier documents | ✅ | ✅ | ❌ | ❌ |
-| Gérer catégories, rôles | ✅ | ❌ | ❌ | ❌ |
-| Lire le journal d'audit | ✅ | ✅ | ❌ | ❌ |
-| Notifications | les siennes uniquement | | | |
+| | admin | technician |
+|---|---|---|
+| Lire les données de son organisation | ✅ | ✅ |
+| Créer / modifier équipements | ✅ | ❌ |
+| Créer / assigner / planifier interventions | ✅ | ❌ |
+| Démarrer, remplir le rapport, **soumettre** son intervention | ✅ | ✅ (jusqu'à la soumission) |
+| Valider (→ terminé), renvoyer pour reprise, annuler | ✅ | ❌ |
+| Cocher les étapes de **son** intervention en cours | ✅ | ✅ (cocher/décocher uniquement) |
+| Déposer des documents, les lier | ✅ | ✅ |
+| Modifier documents, catégories, rôles | ✅ | ❌ |
+| Rouvrir une intervention terminée/annulée (motif obligatoire) | ✅ | ❌ |
+| Lire le journal d'audit | ✅ | ❌ |
+| Notifications | les siennes | les siennes |
+
+## Workflow et verrouillage
+
+```
+todo ──► in_progress ──► submitted ──► done
+ (admin ou technicien assigné)   │ (admin : validation après vérification)
+                                 └──► in_progress   admin + motif : renvoi pour reprise
+todo | in_progress | submitted ──► cancelled        admin + motif
+done | cancelled ──► in_progress                    admin + motif : réouverture
+```
+
+- **Périmètre du technicien** : ses interventions, tant qu'elles sont `todo` / `in_progress`. Il s'arrête à la soumission.
+- **Dès `submitted`**, l'intervention est figée pour tout le monde (contenu, checklist, liens documentaires) :
+  l'admin ne peut plus que changer le statut.
+- Le rapport de travaux (`work_performed`) est obligatoire pour soumettre.
+- Les motifs sont enregistrés dans `intervention_status_history.reason`.
+- API : `change_intervention_status(id, statut, motif?)` ; la base décide qui a le droit de faire quoi.
+- Notifications : « à valider » aux admins à la soumission ; « renvoyée pour reprise » au technicien.
 
 Fichiers : bucket privé `documents`, accès par URL signée, policy Storage sur le premier segment du chemin (= `organization_id`).
 

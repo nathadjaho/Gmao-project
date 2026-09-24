@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useEffect } from "react";
 import {
   Outlet,
   Link,
@@ -9,6 +10,8 @@ import {
 } from "@tanstack/react-router";
 
 import appCss from "../styles.css?url";
+import { supabase } from "@/integrations/supabase/client";
+import { authContextQuery } from "@/features/auth/auth-api";
 
 function NotFoundComponent() {
   return (
@@ -73,10 +76,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "ForgeOS — GMAO industrielle" },
-      { name: "description", content: "Plateforme de Gestion de Maintenance Assistée par Ordinateur pour environnements industriels et techniques exigeants." },
+      {
+        name: "description",
+        content:
+          "Plateforme de Gestion de Maintenance Assistée par Ordinateur pour environnements industriels et techniques exigeants.",
+      },
       { name: "author", content: "ForgeOS" },
       { property: "og:title", content: "ForgeOS — GMAO industrielle" },
-      { property: "og:description", content: "Pilotage du parc, interventions terrain, documentation contrôlée." },
+      {
+        property: "og:description",
+        content: "Pilotage du parc, interventions terrain, documentation contrôlée.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
@@ -99,7 +109,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="fr">
       <head>
         <HeadContent />
       </head>
@@ -113,6 +123,19 @@ function RootShell({ children }: { children: React.ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const router = useRouter();
+
+  // Session expirée, déconnexion dans un autre onglet… : on relance les gardes de route.
+  useEffect(() => {
+    const { data } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "USER_UPDATED") {
+        queryClient
+          .invalidateQueries({ queryKey: authContextQuery.queryKey })
+          .then(() => router.invalidate());
+      }
+    });
+    return () => data.subscription.unsubscribe();
+  }, [queryClient, router]);
 
   return (
     <QueryClientProvider client={queryClient}>
