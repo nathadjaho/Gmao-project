@@ -1,12 +1,13 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { ChevronRight, FileText, Pencil, Plus, Wrench } from "lucide-react";
+import { ChevronRight, Pencil, Plus, Wrench } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useIsAdmin } from "@/features/auth/use-auth";
 import { CriticalityDots } from "@/features/equipment/components/CriticalityDots";
 import { EquipmentFormDialog } from "@/features/equipment/components/EquipmentFormDialog";
+import { LinkedDocuments } from "@/features/documents/components/LinkedDocuments";
 import { CreateInterventionDialog } from "@/features/interventions/components/CreateInterventionDialog";
 import { equipmentDetailQuery } from "@/features/equipment/equipment-api";
 import { EQUIPMENT_STATUS } from "@/features/equipment/equipment-model";
@@ -14,7 +15,7 @@ import {
   INTERVENTION_STATUS,
   INTERVENTION_TYPE_LABELS,
 } from "@/features/interventions/intervention-model";
-import { formatBytes, formatDate } from "@/lib/format";
+import { formatDate } from "@/lib/format";
 
 export const Route = createFileRoute("/_app/equipment/$id")({
   head: () => ({ meta: [{ title: "Fiche équipement — ForgeOS GMAO" }] }),
@@ -50,7 +51,6 @@ function EquipmentDetail() {
   }
 
   const status = EQUIPMENT_STATUS[eq.status];
-  const documents = eq.document_equipment.flatMap((l) => (l.documents ? [l.documents] : []));
 
   return (
     <div className="p-6 md:p-8 max-w-[1400px] mx-auto">
@@ -143,36 +143,7 @@ function EquipmentDetail() {
           )}
         </section>
 
-        <section className="rounded-xl border border-border bg-card shadow-card">
-          <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-            <div className="text-sm font-bold">Documentation associée</div>
-            <Link to="/documents" className="text-[11px] font-semibold text-accent hover:underline">
-              Centre documentaire →
-            </Link>
-          </div>
-          {documents.length === 0 ? (
-            <p className="px-5 py-8 text-sm text-muted-foreground text-center">
-              Aucun document lié.
-            </p>
-          ) : (
-            <ul className="divide-y divide-border">
-              {documents.map((d) => (
-                <li key={d.id} className="px-5 py-3 flex items-center gap-3">
-                  <div className="size-9 rounded-md bg-accent/10 text-accent flex items-center justify-center shrink-0">
-                    <FileText className="size-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-sm font-semibold truncate">{d.name}</div>
-                    <div className="text-[11px] text-muted-foreground font-mono">
-                      {formatBytes(d.size_bytes)}
-                      {d.expires_on && ` · expire le ${formatDate(d.expires_on)}`}
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+        <LinkedDocuments equipmentId={eq.id} canAdd />
       </div>
 
       <EquipmentFormDialog open={editOpen} onOpenChange={setEditOpen} equipment={eq} />

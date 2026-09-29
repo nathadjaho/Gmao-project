@@ -65,8 +65,7 @@ async function fetchEquipmentDetail(id: string) {
     .from("equipment")
     .select(
       `*,
-       interventions(id, title, type, status, priority, due_date, created_at, completed_at),
-       document_equipment(documents(id, name, mime_type, size_bytes, expires_on))`,
+       interventions(id, title, type, status, priority, due_date, created_at, completed_at)`,
     )
     .eq("id", id)
     .order("created_at", { referencedTable: "interventions", ascending: false })

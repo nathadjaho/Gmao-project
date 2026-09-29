@@ -50,9 +50,11 @@ insert into public.intervention_steps (intervention_id, position, title)
   select id, 0, 'Consignation' from public.interventions;
 select id as itv from public.interventions \gset
 select id as cat from public.document_categories limit 1 \gset
-insert into public.documents (category_id, name, storage_path, mime_type, size_bytes)
-  values (:'cat', 'Rapport', :'org1_create_organization' || '/d/r.pdf', 'application/pdf', 1000);
-select id as doc from public.documents \gset
+select gen_random_uuid() as doc, gen_random_uuid() as ver \gset
+insert into storage.objects (bucket_id, name)
+  values ('documents', :'org1_create_organization' || '/' || :'doc' || '/' || :'ver' || '/r.pdf');
+select public.create_document(:'doc', :'ver', 'Rapport', :'cat', null,
+  :'org1_create_organization' || '/' || :'doc' || '/' || :'ver' || '/r.pdf', 'r.pdf');
 
 \echo '--- Isolation entre organisations'
 set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000b';
@@ -153,7 +155,7 @@ update public.memberships set role = 'admin' where user_id = '00000000-0000-0000
 select pg_temp.check('un admin peut promouvoir un membre',
   (select role::text from public.memberships where user_id = '00000000-0000-0000-0000-00000000000c') = 'admin');
 select pg_temp.fails('chemin de document hors organisation',
-  format('insert into public.documents (category_id, name, storage_path, mime_type, size_bytes) values (%L, ''x'', %L, ''application/pdf'', 1)',
+  format('select public.create_document(gen_random_uuid(), gen_random_uuid(), ''x'', %L, null, %L, ''x.pdf'')',
          :'cat', :'org2_create_organization' || '/d/x.pdf'));
 select pg_temp.fails('upload Storage dans une autre organisation',
   format('insert into storage.objects (bucket_id, name) values (''documents'', %L)', :'org2_create_organization' || '/x/f.pdf'));
@@ -177,4 +179,66 @@ select pg_temp.check('dashboard : org2 ne voit rien d''org1',
 reset role;
 set role anon;
 select pg_temp.fails('anonyme : dashboard refusé', 'select public.dashboard_summary()');
+reset role;
+
+\echo '--- Phase 4 : documents et versions'
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000a';
+select pg_temp.check('document créé en v1 avec type et taille lus dans Storage',
+  (select current_version = 1 and mime_type = 'application/pdf' and size_bytes = 1024 from public.documents where id = :'doc')
+  and (select count(*) = 1 from public.document_versions where document_id = :'doc'));
+select pg_temp.fails('écriture directe dans documents interdite',
+  format('insert into public.documents (category_id, name, storage_path, mime_type, size_bytes) values (%L, ''x'', %L, ''application/pdf'', 1)',
+         :'cat', :'org1_create_organization' || '/d/x.pdf'));
+select pg_temp.fails('écriture directe dans document_versions interdite',
+  format('insert into public.document_versions (id, document_id, version_number, storage_path, original_filename, mime_type, size_bytes) values (gen_random_uuid(), %L, 9, %L, ''x'', ''a'', 1)',
+         :'doc', :'org1_create_organization' || '/' || :'doc' || '/x'));
+select pg_temp.fails('le chemin de stockage ne se modifie pas à la main',
+  format('update public.documents set storage_path = ''x'' where id = %L', :'doc'));
+select pg_temp.fails('enregistrer un fichier absent de Storage',
+  format('select public.add_document_version(%L, gen_random_uuid(), %L, ''f.pdf'')',
+         :'doc', :'org1_create_organization' || '/' || :'doc' || '/fantome/f.pdf'));
+select gen_random_uuid() as ver2 \gset
+insert into storage.objects (bucket_id, name, metadata)
+  values ('documents', :'org1_create_organization' || '/' || :'doc' || '/' || :'ver2' || '/r2.pdf',
+          '{"mimetype":"application/pdf","size":2048}');
+select public.add_document_version(:'doc', :'ver2',
+  :'org1_create_organization' || '/' || :'doc' || '/' || :'ver2' || '/r2.pdf', 'r2.pdf', 'Mise à jour', current_date + 365);
+select pg_temp.check('admin : v2 publiée, fiche à jour (taille, échéance)',
+  (select current_version = 2 and size_bytes = 2048 and expires_on = current_date + 365 from public.documents where id = :'doc'));
+select public.restore_document_version(:'ver');
+select pg_temp.check('restauration = nouvelle v3 pointant vers le fichier de la v1',
+  (select current_version = 3 and size_bytes = 1024 from public.documents where id = :'doc')
+  and (select comment = 'Restauration de la v1' from public.document_versions where document_id = :'doc' and version_number = 3));
+update public.documents set name = 'Rapport renommé' where id = :'doc';
+select pg_temp.check('admin : renommer via colonne autorisée',
+  (select name = 'Rapport renommé' from public.documents where id = :'doc'));
+select pg_temp.fails('supprimer un fichier référencé par une version',
+  format('do $x$ begin delete from storage.objects where name = %L; if not found then raise exception ''refusé''; end if; end $x$',
+         :'org1_create_organization' || '/' || :'doc' || '/' || :'ver2' || '/r2.pdf'));
+insert into storage.objects (bucket_id, name)
+  values ('documents', :'org1_create_organization' || '/orphelin/x/o.pdf');
+delete from storage.objects where name = :'org1_create_organization' || '/orphelin/x/o.pdf';
+select pg_temp.check('supprimer son propre envoi orphelin',
+  not exists (select 1 from storage.objects where name = :'org1_create_organization' || '/orphelin/x/o.pdf'));
+-- Technicien : peut créer, pas versionner.
+update public.memberships set role = 'technician' where user_id = '00000000-0000-0000-0000-00000000000c';
+reset role;
+update public.memberships set role = 'technician' where user_id = '00000000-0000-0000-0000-00000000000c';
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000c';
+select gen_random_uuid() as doc3, gen_random_uuid() as ver3 \gset
+insert into storage.objects (bucket_id, name)
+  values ('documents', :'org1_create_organization' || '/' || :'doc3' || '/' || :'ver3' || '/photo.jpg');
+select pg_temp.check('technicien : peut créer un document',
+  public.create_document(:'doc3', :'ver3', 'Photo avant intervention', :'cat', null,
+    :'org1_create_organization' || '/' || :'doc3' || '/' || :'ver3' || '/photo.jpg', 'photo.jpg') = :'doc3'::uuid);
+select pg_temp.fails('technicien : ne peut pas publier de version',
+  format('select public.add_document_version(%L, gen_random_uuid(), %L, ''p.jpg'')',
+         :'doc3', :'org1_create_organization' || '/' || :'doc3' || '/' || :'ver3' || '/photo.jpg'));
+select pg_temp.fails('technicien : ne peut pas renommer',
+  format('do $x$ begin update public.documents set name = ''x'' where id = %L; if not found then raise exception ''refusé''; end if; end $x$', :'doc3'));
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000b';
+select pg_temp.check('org2 ne voit ni documents ni versions d''org1',
+  (select count(*) from public.documents) + (select count(*) from public.document_versions) = 0);
 reset role;

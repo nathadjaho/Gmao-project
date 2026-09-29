@@ -158,16 +158,76 @@ export type Database = {
           },
         ]
       }
+      document_versions: {
+        Row: {
+          comment: string | null
+          created_at: string
+          document_id: string
+          id: string
+          mime_type: string
+          organization_id: string
+          original_filename: string
+          size_bytes: number
+          storage_path: string
+          uploaded_by: string | null
+          version_number: number
+        }
+        Insert: {
+          comment?: string | null
+          created_at?: string
+          document_id: string
+          id: string
+          mime_type: string
+          organization_id?: string
+          original_filename: string
+          size_bytes: number
+          storage_path: string
+          uploaded_by?: string | null
+          version_number: number
+        }
+        Update: {
+          comment?: string | null
+          created_at?: string
+          document_id?: string
+          id?: string
+          mime_type?: string
+          organization_id?: string
+          original_filename?: string
+          size_bytes?: number
+          storage_path?: string
+          uploaded_by?: string | null
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_versions_organization_id_document_id_fkey"
+            columns: ["organization_id", "document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "document_versions_uploader_profile_fk"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       documents: {
         Row: {
           category_id: string
           created_at: string
+          current_version: number
           deleted_at: string | null
           expires_on: string | null
           id: string
           mime_type: string
           name: string
           organization_id: string
+          original_filename: string | null
+          search_text: string | null
           size_bytes: number
           storage_path: string
           updated_at: string
@@ -176,12 +236,14 @@ export type Database = {
         Insert: {
           category_id: string
           created_at?: string
+          current_version?: number
           deleted_at?: string | null
           expires_on?: string | null
           id?: string
           mime_type: string
           name: string
           organization_id?: string
+          original_filename?: string | null
           size_bytes: number
           storage_path: string
           updated_at?: string
@@ -190,12 +252,14 @@ export type Database = {
         Update: {
           category_id?: string
           created_at?: string
+          current_version?: number
           deleted_at?: string | null
           expires_on?: string | null
           id?: string
           mime_type?: string
           name?: string
           organization_id?: string
+          original_filename?: string | null
           size_bytes?: number
           storage_path?: string
           updated_at?: string
@@ -587,6 +651,30 @@ export type Database = {
     Functions: {
       create_organization: { Args: { org_name: string }; Returns: string }
       dashboard_summary: { Args: { p_today?: string }; Returns: Json }
+      create_document: {
+        Args: {
+          p_id: string
+          p_version_id: string
+          p_name: string
+          p_category_id: string
+          p_expires_on: string | null
+          p_storage_path: string
+          p_filename: string
+        }
+        Returns: string
+      }
+      add_document_version: {
+        Args: {
+          p_document_id: string
+          p_version_id: string
+          p_storage_path: string
+          p_filename: string
+          p_comment?: string | null
+          p_expires_on?: string | null
+        }
+        Returns: number
+      }
+      restore_document_version: { Args: { p_version_id: string }; Returns: number }
       change_intervention_status: {
         Args: {
           p_intervention_id: string

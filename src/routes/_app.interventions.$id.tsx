@@ -10,6 +10,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { FormField } from "@/components/FormField";
 import { useAuth, useIsAdmin } from "@/features/auth/use-auth";
 import { ReasonDialog } from "@/features/interventions/components/ReasonDialog";
+import { LinkedDocuments } from "@/features/documents/components/LinkedDocuments";
 import {
   changeStatus,
   interventionDetailQuery,
@@ -165,6 +166,11 @@ function InterventionPage() {
         <div className="lg:col-span-2 space-y-6">
           <Checklist itv={itv} editable={canWork} onChanged={refresh} />
           <ReportSection itv={itv} editable={canWork} locked={locked} onSubmitted={refresh} />
+          {/* Photos, rapports, notices : ajoutables tant que l'intervention n'est pas soumise (verrou en base). */}
+          <LinkedDocuments
+            interventionId={itv.id}
+            canAdd={["todo", "in_progress"].includes(itv.status) && (isAdmin || isAssignee)}
+          />
         </div>
 
         <aside className="space-y-6">

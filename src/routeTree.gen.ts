@@ -16,12 +16,13 @@ import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppTeamRouteImport } from './routes/_app.team'
 import { Route as AppNotificationsRouteImport } from './routes/_app.notifications'
-import { Route as AppDocumentsRouteImport } from './routes/_app.documents'
 import { Route as AppDashboardRouteImport } from './routes/_app.dashboard'
 import { Route as AppInterventionsIndexRouteImport } from './routes/_app.interventions.index'
 import { Route as AppEquipmentIndexRouteImport } from './routes/_app.equipment.index'
+import { Route as AppDocumentsIndexRouteImport } from './routes/_app.documents.index'
 import { Route as AppInterventionsIdRouteImport } from './routes/_app.interventions.$id'
 import { Route as AppEquipmentIdRouteImport } from './routes/_app.equipment.$id'
+import { Route as AppDocumentsIdRouteImport } from './routes/_app.documents.$id'
 
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
@@ -57,11 +58,6 @@ const AppNotificationsRoute = AppNotificationsRouteImport.update({
   path: '/notifications',
   getParentRoute: () => AppRoute,
 } as any)
-const AppDocumentsRoute = AppDocumentsRouteImport.update({
-  id: '/documents',
-  path: '/documents',
-  getParentRoute: () => AppRoute,
-} as any)
 const AppDashboardRoute = AppDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -77,6 +73,11 @@ const AppEquipmentIndexRoute = AppEquipmentIndexRouteImport.update({
   path: '/equipment/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppDocumentsIndexRoute = AppDocumentsIndexRouteImport.update({
+  id: '/documents/',
+  path: '/documents/',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppInterventionsIdRoute = AppInterventionsIdRouteImport.update({
   id: '/interventions/$id',
   path: '/interventions/$id',
@@ -87,6 +88,11 @@ const AppEquipmentIdRoute = AppEquipmentIdRouteImport.update({
   path: '/equipment/$id',
   getParentRoute: () => AppRoute,
 } as any)
+const AppDocumentsIdRoute = AppDocumentsIdRouteImport.update({
+  id: '/documents/$id',
+  path: '/documents/$id',
+  getParentRoute: () => AppRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -94,11 +100,12 @@ export interface FileRoutesByFullPath {
   '/signup': typeof SignupRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/dashboard': typeof AppDashboardRoute
-  '/documents': typeof AppDocumentsRoute
   '/notifications': typeof AppNotificationsRoute
   '/team': typeof AppTeamRoute
+  '/documents/$id': typeof AppDocumentsIdRoute
   '/equipment/$id': typeof AppEquipmentIdRoute
   '/interventions/$id': typeof AppInterventionsIdRoute
+  '/documents/': typeof AppDocumentsIndexRoute
   '/equipment/': typeof AppEquipmentIndexRoute
   '/interventions/': typeof AppInterventionsIndexRoute
 }
@@ -108,11 +115,12 @@ export interface FileRoutesByTo {
   '/signup': typeof SignupRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/dashboard': typeof AppDashboardRoute
-  '/documents': typeof AppDocumentsRoute
   '/notifications': typeof AppNotificationsRoute
   '/team': typeof AppTeamRoute
+  '/documents/$id': typeof AppDocumentsIdRoute
   '/equipment/$id': typeof AppEquipmentIdRoute
   '/interventions/$id': typeof AppInterventionsIdRoute
+  '/documents': typeof AppDocumentsIndexRoute
   '/equipment': typeof AppEquipmentIndexRoute
   '/interventions': typeof AppInterventionsIndexRoute
 }
@@ -124,11 +132,12 @@ export interface FileRoutesById {
   '/signup': typeof SignupRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/_app/dashboard': typeof AppDashboardRoute
-  '/_app/documents': typeof AppDocumentsRoute
   '/_app/notifications': typeof AppNotificationsRoute
   '/_app/team': typeof AppTeamRoute
+  '/_app/documents/$id': typeof AppDocumentsIdRoute
   '/_app/equipment/$id': typeof AppEquipmentIdRoute
   '/_app/interventions/$id': typeof AppInterventionsIdRoute
+  '/_app/documents/': typeof AppDocumentsIndexRoute
   '/_app/equipment/': typeof AppEquipmentIndexRoute
   '/_app/interventions/': typeof AppInterventionsIndexRoute
 }
@@ -140,11 +149,12 @@ export interface FileRouteTypes {
     | '/signup'
     | '/sitemap.xml'
     | '/dashboard'
-    | '/documents'
     | '/notifications'
     | '/team'
+    | '/documents/$id'
     | '/equipment/$id'
     | '/interventions/$id'
+    | '/documents/'
     | '/equipment/'
     | '/interventions/'
   fileRoutesByTo: FileRoutesByTo
@@ -154,11 +164,12 @@ export interface FileRouteTypes {
     | '/signup'
     | '/sitemap.xml'
     | '/dashboard'
-    | '/documents'
     | '/notifications'
     | '/team'
+    | '/documents/$id'
     | '/equipment/$id'
     | '/interventions/$id'
+    | '/documents'
     | '/equipment'
     | '/interventions'
   id:
@@ -169,11 +180,12 @@ export interface FileRouteTypes {
     | '/signup'
     | '/sitemap.xml'
     | '/_app/dashboard'
-    | '/_app/documents'
     | '/_app/notifications'
     | '/_app/team'
+    | '/_app/documents/$id'
     | '/_app/equipment/$id'
     | '/_app/interventions/$id'
+    | '/_app/documents/'
     | '/_app/equipment/'
     | '/_app/interventions/'
   fileRoutesById: FileRoutesById
@@ -237,13 +249,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppNotificationsRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/documents': {
-      id: '/_app/documents'
-      path: '/documents'
-      fullPath: '/documents'
-      preLoaderRoute: typeof AppDocumentsRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/_app/dashboard': {
       id: '/_app/dashboard'
       path: '/dashboard'
@@ -265,6 +270,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppEquipmentIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/documents/': {
+      id: '/_app/documents/'
+      path: '/documents'
+      fullPath: '/documents/'
+      preLoaderRoute: typeof AppDocumentsIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/interventions/$id': {
       id: '/_app/interventions/$id'
       path: '/interventions/$id'
@@ -279,27 +291,36 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppEquipmentIdRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/documents/$id': {
+      id: '/_app/documents/$id'
+      path: '/documents/$id'
+      fullPath: '/documents/$id'
+      preLoaderRoute: typeof AppDocumentsIdRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
 interface AppRouteChildren {
   AppDashboardRoute: typeof AppDashboardRoute
-  AppDocumentsRoute: typeof AppDocumentsRoute
   AppNotificationsRoute: typeof AppNotificationsRoute
   AppTeamRoute: typeof AppTeamRoute
+  AppDocumentsIdRoute: typeof AppDocumentsIdRoute
   AppEquipmentIdRoute: typeof AppEquipmentIdRoute
   AppInterventionsIdRoute: typeof AppInterventionsIdRoute
+  AppDocumentsIndexRoute: typeof AppDocumentsIndexRoute
   AppEquipmentIndexRoute: typeof AppEquipmentIndexRoute
   AppInterventionsIndexRoute: typeof AppInterventionsIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppDashboardRoute: AppDashboardRoute,
-  AppDocumentsRoute: AppDocumentsRoute,
   AppNotificationsRoute: AppNotificationsRoute,
   AppTeamRoute: AppTeamRoute,
+  AppDocumentsIdRoute: AppDocumentsIdRoute,
   AppEquipmentIdRoute: AppEquipmentIdRoute,
   AppInterventionsIdRoute: AppInterventionsIdRoute,
+  AppDocumentsIndexRoute: AppDocumentsIndexRoute,
   AppEquipmentIndexRoute: AppEquipmentIndexRoute,
   AppInterventionsIndexRoute: AppInterventionsIndexRoute,
 }
