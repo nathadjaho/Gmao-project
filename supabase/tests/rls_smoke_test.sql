@@ -242,3 +242,37 @@ set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000b';
 select pg_temp.check('org2 ne voit ni documents ni versions d''org1',
   (select count(*) from public.documents) + (select count(*) from public.document_versions) = 0);
 reset role;
+
+\echo '--- Phase 5 : notifications quotidiennes'
+reset role;
+delete from public.notifications;
+insert into public.interventions (organization_id, equipment_id, title, assigned_to, due_date)
+  select organization_id, id, 'Graissage en retard', '00000000-0000-0000-0000-00000000000c', current_date - 3
+  from public.equipment where code = 'TR-4410';
+insert into public.interventions (organization_id, equipment_id, title, due_date)
+  select organization_id, id, 'Retard sans assigné', current_date - 1
+  from public.equipment where code = 'TR-4410';
+update public.documents set expires_on = current_date + 10 where id = :'doc';
+update public.documents set expires_on = current_date - 2 where id = :'doc3';
+select private.generate_daily_notifications() as first_run \gset
+select private.generate_daily_notifications() as second_run \gset
+select pg_temp.check('job : alertes créées (technicien assigné + admin pour le non assigné + 2 docs)',
+  :first_run = 4);
+select pg_temp.check('job idempotent : 2e passage ne crée rien', :second_run = 0);
+select pg_temp.check('document expiré : message « expiré »',
+  exists (select 1 from public.notifications where entity_id = :'doc3' and message like 'Document expiré%'));
+select pg_temp.check('le document expirant est à nouveau signalé le jour de son expiration',
+  private.generate_daily_notifications(current_date + 11) >= 1);
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000c';
+select pg_temp.check('technicien : ne voit que ses notifications',
+  (select count(*) from public.notifications) = (select count(*) from public.notifications where user_id = auth.uid())
+  and (select count(*) from public.notifications) >= 1);
+select pg_temp.fails('technicien : ne peut pas modifier le message',
+  'update public.notifications set message = ''x''');
+update public.notifications set read_at = now() where read_at is null;
+select pg_temp.check('technicien : marque ses notifications comme lues',
+  not exists (select 1 from public.notifications where read_at is null));
+select pg_temp.fails('un utilisateur ne peut pas lancer le job',
+  'select private.generate_daily_notifications()');
+reset role;

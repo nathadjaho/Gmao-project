@@ -1,5 +1,5 @@
 import { Link, Outlet, useNavigate, useRouteContext, useRouterState } from "@tanstack/react-router";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   LayoutDashboard,
   Wrench,
@@ -16,6 +16,7 @@ import {
 import { cn } from "@/lib/utils";
 import { signOut } from "@/features/auth/auth-api";
 import { ROLE_LABELS, initials } from "@/features/auth/roles";
+import { unreadCountQuery } from "@/features/notifications/notification-api";
 
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -31,6 +32,7 @@ export function AppShell() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const displayName = auth.fullName || auth.email;
+  const { data: unread = 0 } = useQuery(unreadCountQuery);
 
   async function handleSignOut() {
     await signOut(queryClient);
@@ -75,6 +77,17 @@ export function AppShell() {
               >
                 <Icon className="size-4" strokeWidth={1.8} />
                 {item.label}
+                {item.to === "/notifications" && unread > 0 && (
+                  <span
+                    className={cn(
+                      "ml-auto min-w-5 h-5 px-1.5 rounded-full text-[10px] font-bold inline-flex items-center justify-center",
+                      active ? "bg-primary-foreground text-primary" : "bg-critical text-white",
+                    )}
+                    aria-label={`${unread} notification${unread > 1 ? "s" : ""} non lue${unread > 1 ? "s" : ""}`}
+                  >
+                    {unread > 99 ? "99+" : unread}
+                  </span>
+                )}
               </Link>
             );
           })}
