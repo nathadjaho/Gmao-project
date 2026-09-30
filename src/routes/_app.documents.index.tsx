@@ -1,13 +1,14 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { Download, FileText, FolderOpen, Search, Upload } from "lucide-react";
+import { Download, FileText, FolderOpen, Search, Settings2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useIsAdmin } from "@/features/auth/use-auth";
 import { localToday } from "@/features/dashboard/dashboard-api";
 import { DocumentFormDialog } from "@/features/documents/components/DocumentFormDialog";
+import { CategoryManagerDialog } from "@/features/documents/components/CategoryManagerDialog";
 import {
   DOCUMENT_PAGE_SIZE,
   categoriesQuery,
@@ -48,6 +49,7 @@ function DocumentList() {
   const isAdmin = useIsAdmin();
   const today = localToday();
   const [draft, setDraft] = useState(search.q ?? "");
+  const [categoriesOpen, setCategoriesOpen] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -149,6 +151,14 @@ function DocumentList() {
               {search.archived ? "← Documents actifs" : "Voir les archivés"}
             </button>
           )}
+          {isAdmin && (
+            <button
+              onClick={() => setCategoriesOpen(true)}
+              className="w-full px-3 py-2 rounded-md text-xs text-left text-muted-foreground hover:bg-secondary inline-flex items-center gap-2"
+            >
+              <Settings2 className="size-3.5" /> Gérer les catégories
+            </button>
+          )}
         </aside>
 
         <div className="min-w-0">
@@ -226,7 +236,7 @@ function DocumentList() {
                       params={{ id: d.id }}
                       className="px-4 py-3.5 flex items-center gap-4 hover:bg-secondary/30 transition-colors"
                     >
-                      <div className="size-10 rounded-md bg-accent/10 text-accent flex flex-col items-center justify-center shrink-0">
+                      <div className="size-10 rounded-md bg-secondary text-foreground flex flex-col items-center justify-center shrink-0">
                         <FileText className="size-4" />
                         <span className="text-[8px] font-bold mt-0.5">
                           {fileTypeLabel(d.mime_type)}
@@ -300,6 +310,7 @@ function DocumentList() {
         </div>
       </div>
 
+      {isAdmin && <CategoryManagerDialog open={categoriesOpen} onOpenChange={setCategoriesOpen} />}
       <DocumentFormDialog
         open={Boolean(search.upload)}
         onOpenChange={(open) =>

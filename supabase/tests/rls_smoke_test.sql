@@ -276,3 +276,49 @@ select pg_temp.check('technicien : marque ses notifications comme lues',
 select pg_temp.fails('un utilisateur ne peut pas lancer le job',
   'select private.generate_daily_notifications()');
 reset role;
+
+\echo '--- Phase 6 : profil et mot de passe provisoire'
+reset role;
+update public.profiles set must_change_password = true where id = '00000000-0000-0000-0000-00000000000c';
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000c';
+update public.profiles set full_name = 'Charles Tech' where id = auth.uid();
+select pg_temp.check('profil : modifier son nom',
+  (select full_name = 'Charles Tech' from public.profiles where id = auth.uid()));
+select pg_temp.fails('profil : lever soi-même le drapeau « mot de passe à changer »',
+  'update public.profiles set must_change_password = false where id = auth.uid()');
+select pg_temp.fails('profil : modifier son email affiché',
+  'update public.profiles set email = ''faux@x'' where id = auth.uid()');
+select pg_temp.fails('profil : modifier le nom d''un autre',
+  'do $x$ begin update public.profiles set full_name = ''x'' where id = ''00000000-0000-0000-0000-00000000000a''; if not found then raise exception ''refusé''; end if; end $x$');
+reset role;
+update auth.users set encrypted_password = 'nouveau-hash' where id = '00000000-0000-0000-0000-00000000000c';
+select pg_temp.check('changer réellement de mot de passe lève le drapeau',
+  (select not must_change_password from public.profiles where id = '00000000-0000-0000-0000-00000000000c'));
+
+\echo '--- Phase 6b : ajout de membre auto-réparant'
+reset role;
+insert into auth.users (id, email, raw_user_meta_data) values
+ ('00000000-0000-0000-0000-00000000000d', 'nana@libre', '{"full_name":"Nana"}');
+delete from public.profiles where id = '00000000-0000-0000-0000-00000000000d';
+set role service_role;
+select pg_temp.check('clé serveur : profil supprimé recréé depuis auth.users (email insensible à la casse)',
+  public.ensure_profile_by_email('  NANA@Libre ') = '00000000-0000-0000-0000-00000000000d');
+reset role;
+select pg_temp.check('profil recréé avec le nom des métadonnées',
+  (select full_name = 'Nana' and email = 'nana@libre' from public.profiles where id = '00000000-0000-0000-0000-00000000000d'));
+set role service_role;
+select pg_temp.check('clé serveur : 2e appel sans doublon',
+  public.ensure_profile_by_email('nana@libre') = '00000000-0000-0000-0000-00000000000d');
+select pg_temp.check('clé serveur : email inconnu → null',
+  public.ensure_profile_by_email('personne@nulle.part') is null);
+reset role;
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000a';
+select pg_temp.fails('un utilisateur (même admin) ne peut pas appeler ensure_profile_by_email',
+  'select public.ensure_profile_by_email(''x@y.z'')');
+reset role;
+set role anon;
+select pg_temp.fails('anonyme : ensure_profile_by_email refusé',
+  'select public.ensure_profile_by_email(''x@y.z'')');
+reset role;

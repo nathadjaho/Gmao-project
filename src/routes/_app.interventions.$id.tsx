@@ -89,7 +89,7 @@ function InterventionPage() {
         </p>
         <Link
           to="/interventions"
-          className="mt-3 inline-block text-xs font-semibold text-accent hover:underline"
+          className="mt-3 inline-block text-xs font-semibold text-foreground hover:underline"
         >
           ← Retour aux interventions
         </Link>
@@ -180,7 +180,7 @@ function InterventionPage() {
                 <Link
                   to="/equipment/$id"
                   params={{ id: itv.equipment.id }}
-                  className="font-semibold text-accent hover:underline"
+                  className="font-semibold text-foreground hover:underline"
                 >
                   {itv.equipment.code} · {itv.equipment.name}
                 </Link>
@@ -270,7 +270,7 @@ function Checklist({
                 <span
                   className={`size-5 rounded-md border-2 flex items-center justify-center shrink-0 ${
                     done
-                      ? "bg-accent border-accent text-accent-foreground"
+                      ? "bg-primary border-primary text-primary-foreground"
                       : "border-border bg-background"
                   }`}
                 >
@@ -358,7 +358,7 @@ function ReportSection({
         </span>
         <textarea
           rows={4}
-          className="mt-1.5 w-full px-3 py-2 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent"
+          className="mt-1.5 w-full px-3 py-2 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring/15 focus:border-primary"
           {...register("work_performed")}
         />
         {errors.work_performed && (

@@ -34,6 +34,53 @@ export const categoriesQuery = queryOptions({
   staleTime: 5 * 60_000,
 });
 
+/** Pour la gestion des catégories (admin) : nombre de documents, archivés compris. */
+export const categoriesWithCountQuery = queryOptions({
+  queryKey: [...documentKeys.all, "categories", "with-count"],
+  queryFn: async () => {
+    const { data, error } = await supabase
+      .from("document_categories")
+      .select("id, name, documents(count)")
+      .order("name");
+    if (error) throw error;
+    return data.map((c) => ({ id: c.id, name: c.name, count: c.documents[0]?.count ?? 0 }));
+  },
+});
+
+/** Messages lisibles pour les contraintes de la table (nom unique, catégorie utilisée). */
+function categoryError(e: { code?: string; message: string }): Error {
+  if (e.code === "23505") return new Error("Une catégorie porte déjà ce nom.");
+  if (e.code === "23503")
+    return new Error("Catégorie utilisée par des documents : déplacez-les d'abord.");
+  if (e.code === "23514") return new Error("Nom invalide (1 à 80 caractères).");
+  return new Error(e.message);
+}
+
+export async function createCategory(name: string) {
+  const { error } = await supabase.from("document_categories").insert({ name: name.trim() });
+  if (error) throw categoryError(error);
+}
+
+export async function renameCategory(id: string, name: string) {
+  const { data, error } = await supabase
+    .from("document_categories")
+    .update({ name: name.trim() })
+    .eq("id", id)
+    .select("id");
+  if (error) throw categoryError(error);
+  if (data.length === 0) throw new Error("Modification réservée aux administrateurs.");
+}
+
+export async function deleteCategory(id: string) {
+  const { data, error } = await supabase
+    .from("document_categories")
+    .delete()
+    .eq("id", id)
+    .select("id");
+  if (error) throw categoryError(error);
+  if (data.length === 0) throw new Error("Suppression réservée aux administrateurs.");
+}
+
 /* ---------- Lecture ---------- */
 
 async function fetchDocuments({ page, q, category, expiry, archived }: DocumentListParams) {

@@ -184,7 +184,7 @@ function EquipmentList() {
             {isAdmin && !search.q && !search.status && (
               <button
                 onClick={() => setCreateOpen(true)}
-                className="mt-3 text-xs font-semibold text-accent hover:underline"
+                className="mt-3 text-xs font-semibold text-foreground hover:underline"
               >
                 Ajouter le premier équipement
               </button>

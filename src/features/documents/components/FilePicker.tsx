@@ -37,7 +37,7 @@ export function FilePicker({ file, onChange, error }: Props) {
         aria-describedby={error ? errorId : undefined}
         className={`w-full rounded-lg border-2 border-dashed px-4 py-6 text-center transition-colors ${
           dragOver
-            ? "border-accent bg-accent/5"
+            ? "border-primary bg-secondary/60"
             : error
               ? "border-critical/50"
               : "border-border hover:bg-secondary/40"

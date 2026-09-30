@@ -1,30 +1,18 @@
 import { Link, Outlet, useNavigate, useRouteContext, useRouterState } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  LayoutDashboard,
-  Wrench,
-  Package,
-  FileText,
-  Bell,
-  Search,
-  ClipboardCheck,
-  Users,
-  ShieldCheck,
-  HelpCircle,
-  LogOut,
-} from "lucide-react";
+import { Bell, CalendarClock, FileText, LogOut, Package, Users, Wrench } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { signOut } from "@/features/auth/auth-api";
 import { ROLE_LABELS, initials } from "@/features/auth/roles";
 import { unreadCountQuery } from "@/features/notifications/notification-api";
 
+// D18 : 4 entrées seulement. « Aujourd'hui » garde l'URL /dashboard (redirections auth inchangées).
 const navItems = [
-  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/dashboard", label: "Aujourd'hui", icon: CalendarClock },
   { to: "/equipment", label: "Équipements", icon: Package },
   { to: "/interventions", label: "Interventions", icon: Wrench },
   { to: "/documents", label: "Documents", icon: FileText },
-  { to: "/notifications", label: "Notifications", icon: Bell },
-];
+] as const;
 
 export function AppShell() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -39,140 +27,113 @@ export function AppShell() {
     navigate({ to: "/" });
   }
 
+  const iconBtn =
+    "relative size-10 shrink-0 rounded-md inline-flex items-center justify-center text-foreground/70 hover:bg-secondary hover:text-foreground transition-colors";
+
   return (
-    <div className="min-h-screen flex bg-background text-foreground">
-      {/* Sidebar */}
-      <aside className="w-60 shrink-0 border-r border-border bg-sidebar flex flex-col sticky top-0 h-screen">
-        <div className="h-14 flex items-center gap-2 px-5 border-b border-border">
-          <div className="size-8 rounded-md bg-primary flex items-center justify-center">
-            <ShieldCheck className="size-4 text-accent" strokeWidth={2.2} />
-          </div>
-          <div className="leading-tight">
-            <div className="text-sm font-bold tracking-tight">
-              FORGE<span className="text-accent">OS</span>
-            </div>
-            <div className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground">
-              GMAO · v1.0
-            </div>
-          </div>
-        </div>
-
-        <nav className="flex-1 p-3 space-y-0.5">
-          <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground px-2 py-2">
-            Pilotage
-          </div>
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const active = pathname.startsWith(item.to);
-            return (
-              <Link
-                key={item.to}
-                to={item.to}
-                className={cn(
-                  "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-colors",
-                  active
-                    ? "bg-primary text-primary-foreground font-semibold"
-                    : "text-foreground/70 hover:bg-secondary hover:text-foreground",
-                )}
-              >
-                <Icon className="size-4" strokeWidth={1.8} />
-                {item.label}
-                {item.to === "/notifications" && unread > 0 && (
-                  <span
-                    className={cn(
-                      "ml-auto min-w-5 h-5 px-1.5 rounded-full text-[10px] font-bold inline-flex items-center justify-center",
-                      active ? "bg-primary-foreground text-primary" : "bg-critical text-white",
-                    )}
-                    aria-label={`${unread} notification${unread > 1 ? "s" : ""} non lue${unread > 1 ? "s" : ""}`}
-                  >
-                    {unread > 99 ? "99+" : unread}
-                  </span>
-                )}
-              </Link>
-            );
-          })}
-
-          <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground px-2 py-2 mt-4">
-            Système
-          </div>
-          <Link
-            to="/team"
-            className={cn(
-              "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-colors",
-              pathname.startsWith("/team")
-                ? "bg-primary text-primary-foreground font-semibold"
-                : "text-foreground/70 hover:bg-secondary hover:text-foreground",
-            )}
-          >
-            <Users className="size-4" strokeWidth={1.8} /> Équipe
-          </Link>
-          <Link
-            to="/dashboard"
-            className="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-foreground/70 hover:bg-secondary"
-          >
-            <HelpCircle className="size-4" strokeWidth={1.8} /> Aide
-          </Link>
-        </nav>
-
-        <div className="p-3 border-t border-border">
-          <div className="flex items-center gap-2.5 rounded-md p-2 bg-secondary/60">
-            <div className="size-8 shrink-0 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">
-              {initials(displayName)}
-            </div>
-            <div className="leading-tight min-w-0 flex-1">
-              <div className="text-xs font-semibold truncate">{displayName}</div>
-              <div className="text-[10px] text-muted-foreground uppercase tracking-wider truncate">
-                {ROLE_LABELS[auth.membership.role]}
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={handleSignOut}
-              title="Se déconnecter"
-              aria-label="Se déconnecter"
-              className="size-7 shrink-0 rounded-md inline-flex items-center justify-center text-muted-foreground hover:bg-background hover:text-foreground"
-            >
-              <LogOut className="size-3.5" />
-            </button>
-          </div>
-        </div>
-      </aside>
-
-      {/* Main */}
-      <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-14 border-b border-border bg-card/60 backdrop-blur sticky top-0 z-40 flex items-center justify-between px-6">
-          <div className="flex items-center gap-3 text-sm">
-            <span className="text-muted-foreground">{auth.membership.organization.name}</span>
-            <span className="text-border">/</span>
-            <span className="font-semibold capitalize">
-              {pathname.split("/")[1] || "dashboard"}
+    <div className="min-h-screen flex flex-col bg-background text-foreground">
+      <header className="sticky top-0 z-40 h-15 border-b border-border bg-card">
+        <div className="h-full max-w-[1400px] mx-auto px-4 md:px-8 flex items-center gap-4 md:gap-8">
+          <Link to="/dashboard" className="flex items-center gap-2 shrink-0" aria-label="Accueil">
+            <span className="size-6 rounded-md bg-primary text-primary-foreground font-mono text-xs font-semibold flex items-center justify-center">
+              F
             </span>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="hidden md:flex items-center gap-2 h-9 px-3 w-72 rounded-md border border-border bg-background text-xs text-muted-foreground">
-              <Search className="size-3.5" />
-              Rechercher équipement, OT, document…
-              <kbd className="ml-auto font-mono text-[10px] px-1.5 py-0.5 rounded border border-border bg-card">
-                ⌘K
-              </kbd>
-            </div>
-            {auth.membership.role === "admin" && (
-              <Link
-                to="/interventions"
-                search={{ create: true }}
-                className="inline-flex items-center gap-2 h-9 px-3 rounded-md bg-primary text-primary-foreground text-xs font-semibold shadow-sm hover:bg-primary/90 transition-colors"
-              >
-                <ClipboardCheck className="size-3.5" />
-                Nouvelle intervention
-              </Link>
-            )}
-          </div>
-        </header>
+            <span className="hidden sm:inline text-sm font-semibold tracking-tight">ForgeOS</span>
+          </Link>
 
-        <main className="flex-1 overflow-y-auto">
-          <Outlet />
-        </main>
-      </div>
+          <nav
+            className="flex items-stretch h-full gap-1 min-w-0"
+            aria-label="Navigation principale"
+          >
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const active = pathname.startsWith(item.to);
+              return (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  aria-current={active ? "page" : undefined}
+                  className={cn(
+                    "flex items-center gap-2 px-2.5 text-sm font-medium border-b-2 -mb-px whitespace-nowrap transition-colors",
+                    active
+                      ? "border-foreground text-foreground"
+                      : "border-transparent text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <Icon className="size-4 md:hidden" strokeWidth={1.8} aria-hidden />
+                  <span className="sr-only md:not-sr-only">{item.label}</span>
+                </Link>
+              );
+            })}
+          </nav>
+
+          <div className="ml-auto flex items-center gap-1 md:gap-2">
+            <Link
+              to="/notifications"
+              className={cn(
+                iconBtn,
+                pathname.startsWith("/notifications") && "bg-secondary text-foreground",
+              )}
+              aria-label={
+                unread > 0
+                  ? `Notifications : ${unread} non lue${unread > 1 ? "s" : ""}`
+                  : "Notifications"
+              }
+            >
+              <Bell className="size-[18px]" strokeWidth={1.8} />
+              {unread > 0 && (
+                <span className="absolute top-1 right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-critical text-white text-[10px] font-semibold font-mono flex items-center justify-center border-2 border-card">
+                  {unread > 99 ? "99+" : unread}
+                </span>
+              )}
+            </Link>
+            <Link
+              to="/team"
+              className={cn(
+                iconBtn,
+                pathname.startsWith("/team") && "bg-secondary text-foreground",
+              )}
+              aria-label="Équipe"
+              title="Équipe"
+            >
+              <Users className="size-[18px]" strokeWidth={1.8} />
+            </Link>
+
+            <div className="flex items-center gap-2.5 pl-2 md:pl-3 ml-1 border-l border-border">
+              {/* Ouvre « Mon profil » (nom, mot de passe). */}
+              <Link
+                to="/profile"
+                title="Mon profil"
+                aria-current={pathname.startsWith("/profile") ? "page" : undefined}
+                className="flex items-center gap-2.5 min-w-0 rounded-md hover:opacity-80 transition-opacity"
+              >
+                <div className="size-8 shrink-0 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-semibold">
+                  {initials(displayName)}
+                </div>
+                <div className="hidden lg:block leading-tight min-w-0 max-w-40">
+                  <div className="text-xs font-semibold truncate">{displayName}</div>
+                  <div className="text-[11px] text-muted-foreground truncate">
+                    {ROLE_LABELS[auth.membership.role]} · {auth.membership.organization.name}
+                  </div>
+                </div>
+              </Link>
+              <button
+                type="button"
+                onClick={handleSignOut}
+                title="Se déconnecter"
+                aria-label="Se déconnecter"
+                className={iconBtn}
+              >
+                <LogOut className="size-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main className="flex-1">
+        <Outlet />
+      </main>
     </div>
   );
 }

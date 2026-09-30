@@ -33,7 +33,7 @@ export function LinkedDocuments({ equipmentId, interventionId, canAdd }: Props) 
           <button
             type="button"
             onClick={() => setOpen(true)}
-            className="text-[11px] font-semibold text-accent hover:underline inline-flex items-center gap-1"
+            className="text-[11px] font-semibold text-foreground hover:underline inline-flex items-center gap-1"
           >
             <Plus className="size-3" /> Ajouter
           </button>
@@ -54,7 +54,7 @@ export function LinkedDocuments({ equipmentId, interventionId, canAdd }: Props) 
                   params={{ id: d.id }}
                   className="px-5 py-3 flex items-center gap-3 hover:bg-secondary/30 transition-colors"
                 >
-                  <div className="size-9 rounded-md bg-accent/10 text-accent flex items-center justify-center shrink-0">
+                  <div className="size-9 rounded-md bg-secondary text-foreground flex items-center justify-center shrink-0">
                     <FileText className="size-4" />
                   </div>
                   <div className="min-w-0 flex-1">

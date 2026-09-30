@@ -71,9 +71,12 @@ Deno.serve(async (req) => {
     email_confirm: true,
     user_metadata: { full_name: fullName },
   });
+
   if (createErr || !created.user) {
     const exists = createErr?.message?.toLowerCase().includes("already");
-    return json({ error: exists ? "Un compte existe déjà avec cet email" : createErr?.message ?? "Création impossible" }, exists ? 409 : 400);
+    if (!exists) return json({ error: createErr?.message ?? "Création impossible" }, 400);
+    // 4bis. Le compte existe déjà : on le rattache s'il n'appartient à AUCUNE autre organisation.
+    return await attachExisting(email, role, membership.organization_id);
   }
 
   // 5. Rattachement à l'organisation de l'admin. En cas d'échec, on supprime le
@@ -88,5 +91,43 @@ Deno.serve(async (req) => {
     return json({ error: "Rattachement à l'organisation impossible : " + memberErr.message }, 500);
   }
 
-  return json({ user_id: created.user.id, email, full_name: fullName, role }, 201);
+  // 6. L'admin connaît ce mot de passe : il devra être changé à la première connexion.
+  await admin.from("profiles").update({ must_change_password: true }).eq("id", created.user.id);
+
+  return json({ user_id: created.user.id, email, full_name: fullName, role, attached: false }, 201);
+
+  /**
+   * Compte déjà existant (ex. inscrit lui-même, retiré d'une organisation supprimée,
+   * ou profil supprimé à la main — recréé automatiquement).
+   * - membre actif ici → 409 ;
+   * - membre désactivé ici → réactivé avec le rôle choisi ;
+   * - sans organisation → rattaché ;
+   * - membre d'une AUTRE organisation → refusé (un compte = une organisation).
+   * Le mot de passe saisi par l'admin est ignoré : la personne garde le sien.
+   */
+  async function attachExisting(email: string, role: string, orgId: string) {
+    // Auto-réparation : si la ligne profiles a été supprimée à la main, on la recrée
+    // depuis auth.users (fonction réservée à la clé serveur, voir phase6b).
+    const { data: userId, error: healErr } = await admin.rpc("ensure_profile_by_email", { p_email: email });
+    if (healErr || !userId) return json({ error: "Un compte existe avec cet email mais il est introuvable" }, 409);
+    const profile = { id: userId as string };
+
+    const { data: existing } = await admin
+      .from("memberships")
+      .select("organization_id, deleted_at")
+      .eq("user_id", profile.id)
+      .maybeSingle();
+
+    if (existing && existing.organization_id !== orgId) {
+      return json({ error: "Ce compte appartient déjà à une autre organisation" }, 409);
+    }
+    if (existing && !existing.deleted_at) {
+      return json({ error: "Cette personne fait déjà partie de votre équipe" }, 409);
+    }
+    const { error } = existing
+      ? await admin.from("memberships").update({ deleted_at: null, role }).eq("user_id", profile.id).eq("organization_id", orgId)
+      : await admin.from("memberships").insert({ user_id: profile.id, organization_id: orgId, role });
+    if (error) return json({ error: "Rattachement impossible : " + error.message }, 500);
+    return json({ user_id: profile.id, email, role, attached: true }, 200);
+  }
 });

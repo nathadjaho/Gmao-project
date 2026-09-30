@@ -20,7 +20,7 @@ export const FormField = forwardRef<HTMLInputElement, Props>(function FormField(
         ref={ref}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? errorId : undefined}
-        className="mt-1.5 w-full h-11 px-3 rounded-md border border-input bg-card text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all aria-[invalid=true]:border-critical"
+        className="mt-1.5 w-full h-11 px-3 rounded-md border border-input bg-card text-sm focus:outline-none focus:ring-2 focus:ring-ring/15 focus:border-primary transition-all aria-[invalid=true]:border-critical"
         {...inputProps}
       />
       {error && (
@@ -64,7 +64,7 @@ export const FormSelect = forwardRef<HTMLSelectElement, SelectProps>(function Fo
         ref={ref}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? errorId : undefined}
-        className="mt-1.5 w-full h-11 px-3 rounded-md border border-input bg-card text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all aria-[invalid=true]:border-critical"
+        className="mt-1.5 w-full h-11 px-3 rounded-md border border-input bg-card text-sm focus:outline-none focus:ring-2 focus:ring-ring/15 focus:border-primary transition-all aria-[invalid=true]:border-critical"
         {...selectProps}
       >
         {options.map((o) => (

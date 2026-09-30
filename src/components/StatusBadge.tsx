@@ -1,23 +1,43 @@
 import { cn } from "@/lib/utils";
 
-type Variant = "operational" | "warning" | "critical" | "pending" | "completed" | "neutral";
+/**
+ * Statut = glyphe (forme) + libellé. La couleur est réservée à l'urgence (D18) :
+ * seuls `critical` (rouge) et `warning` (orange) sont colorés ; tout le reste est en encre/gris.
+ * La forme porte le sens, pour que l'information ne dépende jamais de la couleur seule.
+ */
+type Variant =
+  | "operational" // en service / OK
+  | "critical" // en panne, expiré, dépassé
+  | "warning" // expire bientôt, échéance proche
+  | "pending" // à faire
+  | "progress" // en cours
+  | "review" // soumis, à valider
+  | "completed" // terminé
+  | "neutral"; // hors service, annulé, archivé
 
-const styles: Record<Variant, string> = {
-  operational: "bg-success/10 text-success border-success/20",
-  warning: "bg-warning/10 text-warning border-warning/30",
-  critical: "bg-critical/10 text-critical border-critical/20",
-  pending: "bg-muted text-muted-foreground border-border",
-  completed: "bg-accent/10 text-accent border-accent/20",
-  neutral: "bg-secondary text-secondary-foreground border-border",
+const text: Record<Variant, string> = {
+  operational: "text-muted-foreground",
+  critical: "text-critical",
+  warning: "text-warning",
+  pending: "text-muted-foreground",
+  progress: "text-foreground",
+  review: "text-foreground",
+  completed: "text-muted-foreground",
+  neutral: "text-muted-foreground",
 };
 
-const dotStyles: Record<Variant, string> = {
-  operational: "bg-success",
-  warning: "bg-warning",
-  critical: "bg-critical",
-  pending: "bg-muted-foreground",
-  completed: "bg-accent",
-  neutral: "bg-steel",
+const glyph: Record<Variant, string> = {
+  operational: "size-2 m-px rounded-full bg-muted-foreground",
+  critical: "size-2.5 bg-critical [clip-path:polygon(50%_0,100%_100%,0_100%)]",
+  warning: "size-2.5 rounded-full bg-warning",
+  pending: "size-2.5 rounded-full border-[1.5px] border-dashed border-muted-foreground",
+  progress:
+    "size-2.5 rounded-full border-[1.5px] border-foreground bg-[linear-gradient(90deg,transparent_50%,var(--color-foreground)_50%)]",
+  review:
+    "size-2.5 rounded-full border-[1.5px] border-foreground bg-[radial-gradient(circle,var(--color-foreground)_0_1.5px,transparent_2px)]",
+  completed: "size-2.5 rounded-full bg-muted-foreground",
+  neutral:
+    "size-2.5 rounded-full border-[1.5px] border-steel bg-[linear-gradient(135deg,transparent_42%,var(--color-steel)_42%_58%,transparent_58%)]",
 };
 
 export function StatusBadge({
@@ -34,12 +54,12 @@ export function StatusBadge({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold tracking-wide",
-        styles[variant],
+        "inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-medium",
+        text[variant],
         className,
       )}
     >
-      {withDot && <span className={cn("size-1.5 rounded-full", dotStyles[variant])} />}
+      {withDot && <span aria-hidden className={cn("shrink-0", glyph[variant])} />}
       {children}
     </span>
   );

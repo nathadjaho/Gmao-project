@@ -94,13 +94,13 @@ function LoginPage() {
         </button>
 
         <div className="flex items-center gap-2 text-[11px] text-muted-foreground border-t border-border pt-5">
-          <Lock className="size-3.5 text-accent" />
+          <Lock className="size-3.5 text-foreground" />
           Connexion chiffrée (HTTPS).
         </div>
 
         <p className="text-center text-xs text-muted-foreground">
           Pas encore de compte ?{" "}
-          <Link to="/signup" className="font-semibold text-accent hover:underline">
+          <Link to="/signup" className="font-semibold text-foreground hover:underline">
             Créer un espace
           </Link>
         </p>

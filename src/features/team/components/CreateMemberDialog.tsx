@@ -35,7 +35,7 @@ export function CreateMemberDialog({
 }) {
   const queryClient = useQueryClient();
   const [formError, setFormError] = useState<string | null>(null);
-  const [created, setCreated] = useState<CreateMemberInput | null>(null);
+  const [created, setCreated] = useState<(CreateMemberInput & { attached: boolean }) | null>(null);
   const {
     register,
     handleSubmit,
@@ -54,9 +54,9 @@ export function CreateMemberDialog({
 
   const mutation = useMutation({
     mutationFn: createMember,
-    onSuccess: async (_, input) => {
+    onSuccess: async (res, input) => {
       await queryClient.invalidateQueries({ queryKey: teamKeys.all });
-      setCreated(input);
+      setCreated({ ...input, attached: res.attached });
     },
     onError: (e) => setFormError(e instanceof Error ? e.message : "Création impossible."),
   });
@@ -68,13 +68,33 @@ export function CreateMemberDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
-        {created ? (
+        {created?.attached ? (
+          <>
+            <DialogHeader>
+              <DialogTitle>Compte existant rattaché</DialogTitle>
+              <DialogDescription>
+                {created.email} avait déjà un compte. Il fait maintenant partie de votre équipe et
+                se connecte avec son mot de passe habituel (le mot de passe provisoire n'a pas été
+                utilisé).
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <button
+                type="button"
+                onClick={() => onOpenChange(false)}
+                className="h-9 px-4 rounded-md bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90"
+              >
+                Terminé
+              </button>
+            </DialogFooter>
+          </>
+        ) : created ? (
           <>
             <DialogHeader>
               <DialogTitle>Compte créé</DialogTitle>
               <DialogDescription>
                 Transmettez ces identifiants à {created.fullName}. Le mot de passe ne sera plus
-                affiché.
+                affiché, et devra être changé à la première connexion.
               </DialogDescription>
             </DialogHeader>
             <pre className="rounded-md bg-secondary px-3 py-3 text-xs font-mono whitespace-pre-wrap">
@@ -105,7 +125,7 @@ export function CreateMemberDialog({
               <DialogTitle>Ajouter un membre</DialogTitle>
               <DialogDescription>
                 Le compte est créé immédiatement, sans email. Vous transmettrez le mot de passe
-                provisoire.
+                provisoire. Si l'email a déjà un compte sans équipe, il est simplement rattaché.
               </DialogDescription>
             </DialogHeader>
             <form

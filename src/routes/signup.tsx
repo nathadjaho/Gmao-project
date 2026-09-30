@@ -50,14 +50,17 @@ function SignupPage() {
     return (
       <AuthLayout>
         <div className="w-full max-w-sm space-y-4 text-center">
-          <MailCheck className="size-10 mx-auto text-accent" />
+          <MailCheck className="size-10 mx-auto text-foreground" />
           <h1 className="text-2xl font-bold tracking-tight">Vérifiez votre boîte mail</h1>
           <p className="text-sm text-muted-foreground">
             Un lien de confirmation a été envoyé à{" "}
             <span className="font-semibold text-foreground">{sentTo}</span>. Cliquez dessus pour
             activer votre compte et créer votre organisation.
           </p>
-          <Link to="/" className="inline-block text-xs font-semibold text-accent hover:underline">
+          <Link
+            to="/"
+            className="inline-block text-xs font-semibold text-foreground hover:underline"
+          >
             Retour à la connexion
           </Link>
         </div>
@@ -113,7 +116,7 @@ function SignupPage() {
 
         <p className="text-center text-xs text-muted-foreground">
           Déjà un compte ?{" "}
-          <Link to="/" className="font-semibold text-accent hover:underline">
+          <Link to="/" className="font-semibold text-foreground hover:underline">
             Se connecter
           </Link>
         </p>

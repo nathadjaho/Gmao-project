@@ -42,7 +42,7 @@ function EquipmentDetail() {
         </p>
         <Link
           to="/equipment"
-          className="mt-3 inline-block text-xs font-semibold text-accent hover:underline"
+          className="mt-3 inline-block text-xs font-semibold text-foreground hover:underline"
         >
           ← Retour aux équipements
         </Link>
@@ -111,7 +111,7 @@ function EquipmentDetail() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <section className="lg:col-span-2 rounded-xl border border-border bg-card shadow-card">
           <div className="px-5 py-4 border-b border-border text-sm font-bold flex items-center gap-2">
-            <Wrench className="size-4 text-accent" /> Historique des interventions
+            <Wrench className="size-4 text-foreground" /> Historique des interventions
           </div>
           {eq.interventions.length === 0 ? (
             <p className="px-5 py-8 text-sm text-muted-foreground text-center">

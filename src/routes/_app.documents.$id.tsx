@@ -96,7 +96,7 @@ function DocumentPage() {
         </p>
         <Link
           to="/documents"
-          className="mt-3 inline-block text-xs font-semibold text-accent hover:underline"
+          className="mt-3 inline-block text-xs font-semibold text-foreground hover:underline"
         >
           ← Retour aux documents
         </Link>
@@ -161,7 +161,7 @@ function DocumentPage() {
 
           <section className="rounded-xl border border-border bg-card shadow-card overflow-hidden">
             <div className="px-5 py-4 border-b border-border text-sm font-bold flex items-center gap-2">
-              <History className="size-4 text-accent" /> Historique des versions
+              <History className="size-4 text-foreground" /> Historique des versions
             </div>
             <ul className="divide-y divide-border">
               {doc.versions.map((v) => {
@@ -173,7 +173,7 @@ function DocumentPage() {
                       <div className="text-sm truncate">
                         {v.comment || v.original_filename}
                         {current && (
-                          <span className="ml-2 text-[10px] font-bold uppercase tracking-wider text-accent">
+                          <span className="ml-2 text-[10px] font-bold uppercase tracking-wider text-foreground">
                             Actuelle
                           </span>
                         )}
@@ -360,7 +360,7 @@ function EquipmentLinks({
           <button
             type="button"
             onClick={() => setAdding(true)}
-            className="text-[11px] font-semibold text-accent hover:underline inline-flex items-center gap-1"
+            className="text-[11px] font-semibold text-foreground hover:underline inline-flex items-center gap-1"
           >
             <Link2 className="size-3" /> Lier
           </button>

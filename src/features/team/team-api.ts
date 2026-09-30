@@ -12,7 +12,9 @@ export const teamQuery = queryOptions({
   queryFn: async () => {
     const { data, error } = await supabase
       .from("memberships")
-      .select("user_id, role, deleted_at, created_at, profile:profiles(full_name, email)")
+      .select(
+        "user_id, role, deleted_at, created_at, profile:profiles(full_name, email, must_change_password)",
+      )
       .order("created_at");
     if (error) throw error;
     return data;
@@ -29,7 +31,11 @@ export const createMemberSchema = z.object({
 });
 export type CreateMemberInput = z.infer<typeof createMemberSchema>;
 
-/** Appelle l'Edge Function create-member : la création de compte exige la clé secrète, côté serveur. */
+/**
+ * Appelle l'Edge Function create-member : la création de compte exige la clé secrète, côté serveur.
+ * Si un compte existe déjà avec cet email et n'appartient à aucune organisation,
+ * il est rattaché (attached: true) et garde son propre mot de passe.
+ */
 export async function createMember(input: CreateMemberInput) {
   const { data, error } = await supabase.functions.invoke("create-member", {
     body: {
@@ -45,7 +51,7 @@ export async function createMember(input: CreateMemberInput) {
     const body = ctx ? await ctx.json().catch(() => null) : null;
     throw new Error(body?.error ?? error.message);
   }
-  return data as { user_id: string };
+  return data as { user_id: string; attached: boolean };
 }
 
 export async function updateMemberRole(userId: string, role: AppRole) {

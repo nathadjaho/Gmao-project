@@ -50,7 +50,7 @@ export function ReasonDialog({
             rows={3}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            className="mt-1.5 w-full px-3 py-2 rounded-md border border-input bg-card text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent"
+            className="mt-1.5 w-full px-3 py-2 rounded-md border border-input bg-card text-sm focus:outline-none focus:ring-2 focus:ring-ring/15 focus:border-primary"
           />
           {!valid && reason.length > 0 && (
             <span className="mt-1 block text-xs text-critical">5 caractères minimum</span>

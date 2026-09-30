@@ -35,6 +35,8 @@
   --color-warning-foreground: var(--warning-foreground);
   --color-critical: var(--critical);
   --color-critical-foreground: var(--critical-foreground);
+  --color-late: var(--late);
+  --color-soon: var(--soon);
   --color-navy: var(--navy);
   --color-steel: var(--steel);
   --color-sidebar: var(--sidebar);
@@ -45,81 +47,95 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-  --font-sans: "Inter", system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, monospace;
-  --shadow-card: 0 1px 2px 0 oklch(0.2 0.04 265 / 0.04), 0 1px 3px 0 oklch(0.2 0.04 265 / 0.06);
-  --shadow-elevated: 0 4px 16px -4px oklch(0.2 0.04 265 / 0.08), 0 2px 6px -2px oklch(0.2 0.04 265 / 0.06);
+  --font-sans: "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --shadow-card: 0 1px 2px 0 rgb(22 22 22 / 0.04);
+  --shadow-elevated: 0 8px 24px -8px rgb(22 22 22 / 0.12), 0 2px 6px -2px rgb(22 22 22 / 0.06);
 }
 
 :root {
-  --radius: 0.625rem;
+  --radius: 0.5rem;
 
-  /* Industrial precision — light slate palette */
-  --background: oklch(0.985 0.003 247);          /* slate-50 */
-  --foreground: oklch(0.18 0.04 265);            /* navy-900 */
+  /* Direction « Échéances » (D18) : encre + gris chauds. La couleur est réservée à l'urgence. */
+  --background: #fafaf9;
+  --foreground: #161616;
 
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.18 0.04 265);
+  --card: #ffffff;
+  --card-foreground: #161616;
 
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.18 0.04 265);
+  --popover: #ffffff;
+  --popover-foreground: #161616;
 
-  --primary: oklch(0.22 0.04 265);               /* navy 900 */
-  --primary-foreground: oklch(0.985 0.003 247);
+  --primary: #161616; /* encre : actions principales */
+  --primary-foreground: #ffffff;
 
-  --secondary: oklch(0.965 0.008 247);
-  --secondary-foreground: oklch(0.22 0.04 265);
+  --secondary: #f2f2f0;
+  --secondary-foreground: #161616;
 
-  --muted: oklch(0.965 0.008 247);
-  --muted-foreground: oklch(0.5 0.025 257);
+  --muted: #f2f2f0;
+  --muted-foreground: #6b6b68; /* 5,2:1 sur le fond */
 
-  --accent: oklch(0.72 0.13 215);                /* cyan industrial */
-  --accent-foreground: oklch(0.18 0.04 265);
+  /* shadcn : « accent » = fond de survol / élément actif discret, pas une couleur de marque */
+  --accent: #f2f2f0;
+  --accent-foreground: #161616;
 
-  --destructive: oklch(0.6 0.22 27);
-  --destructive-foreground: oklch(0.985 0.003 247);
+  /* Urgence : seules couleurs de l'interface */
+  --late: #c8321f; /* dépassé, en panne, expiré */
+  --soon: #b54708; /* aujourd'hui / demain, expire bientôt */
 
-  --success: oklch(0.68 0.15 155);
-  --success-foreground: oklch(0.18 0.04 265);
+  --destructive: var(--late);
+  --destructive-foreground: #ffffff;
+  --critical: var(--late);
+  --critical-foreground: #ffffff;
+  --warning: var(--soon);
+  --warning-foreground: #ffffff;
+  --success: #3b3b39; /* « tout va bien » n'a pas besoin de couleur */
+  --success-foreground: #ffffff;
 
-  --warning: oklch(0.75 0.16 65);                /* maintenance orange */
-  --warning-foreground: oklch(0.18 0.04 265);
+  --navy: #161616;
+  --steel: #9a9a96;
 
-  --critical: oklch(0.62 0.22 27);
-  --critical-foreground: oklch(0.985 0.003 247);
+  --border: #ececea;
+  --input: #dededb;
+  --ring: #161616;
 
-  --navy: oklch(0.22 0.04 265);
-  --steel: oklch(0.7 0.025 257);
-
-  --border: oklch(0.92 0.013 255);
-  --input: oklch(0.92 0.013 255);
-  --ring: oklch(0.72 0.13 215);
-
-  --sidebar: oklch(1 0 0);
-  --sidebar-foreground: oklch(0.18 0.04 265);
-  --sidebar-primary: oklch(0.22 0.04 265);
-  --sidebar-primary-foreground: oklch(0.985 0.003 247);
-  --sidebar-accent: oklch(0.965 0.008 247);
-  --sidebar-accent-foreground: oklch(0.22 0.04 265);
-  --sidebar-border: oklch(0.92 0.013 255);
-  --sidebar-ring: oklch(0.72 0.13 215);
+  --sidebar: #ffffff;
+  --sidebar-foreground: #161616;
+  --sidebar-primary: #161616;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f2f2f0;
+  --sidebar-accent-foreground: #161616;
+  --sidebar-border: #ececea;
+  --sidebar-ring: #161616;
 }
 
 @layer base {
-  * { border-color: var(--color-border); }
-  html, body { height: 100%; }
+  * {
+    border-color: var(--color-border);
+  }
+  html,
+  body {
+    height: 100%;
+  }
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
-    font-feature-settings: "cv11", "ss01";
   }
 }
 
 @layer utilities {
-  .font-mono { font-family: var(--font-mono); }
-  .text-balance { text-wrap: balance; }
+  .font-mono {
+    font-family: var(--font-mono);
+    font-feature-settings: "tnum" 1;
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  .text-balance {
+    text-wrap: balance;
+  }
   .grid-bg {
     background-image:
       linear-gradient(to right, oklch(0.92 0.013 255 / 0.5) 1px, transparent 1px),

@@ -3,16 +3,16 @@ import type { Enums } from "@/integrations/supabase/types";
 
 export type InterventionStatus = Enums<"intervention_status">;
 
-type BadgeVariant = "pending" | "warning" | "completed" | "operational" | "neutral";
+type BadgeVariant = "pending" | "progress" | "review" | "completed" | "neutral";
 
 export const INTERVENTION_STATUS: Record<
   InterventionStatus,
   { label: string; badge: BadgeVariant }
 > = {
   todo: { label: "À faire", badge: "pending" },
-  in_progress: { label: "En cours", badge: "warning" },
-  submitted: { label: "Soumis · à valider", badge: "completed" },
-  done: { label: "Terminé", badge: "operational" },
+  in_progress: { label: "En cours", badge: "progress" },
+  submitted: { label: "À valider", badge: "review" },
+  done: { label: "Terminé", badge: "completed" },
   cancelled: { label: "Annulé", badge: "neutral" },
 };
 

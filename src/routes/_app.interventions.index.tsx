@@ -17,6 +17,7 @@ const VIEWS: { id: InterventionView; label: string; adminOnly?: boolean }[] = [
   { id: "mine", label: "Mes interventions" },
   { id: "to_validate", label: "À valider", adminOnly: true },
   { id: "open", label: "En cours / à faire" },
+  { id: "overdue", label: "En retard" },
   { id: "all", label: "Toutes" },
 ];
 
@@ -42,7 +43,7 @@ function InterventionList() {
   const page = search.page ?? 1;
 
   const { data, isPending, isError, error } = useQuery(
-    interventionListQuery({ page, view, userId: auth.userId }),
+    interventionListQuery({ page, view, userId: auth.userId, onlyMine: !isAdmin }),
   );
   const total = data?.total ?? 0;
   const pageCount = Math.max(1, Math.ceil(total / INTERVENTION_PAGE_SIZE));

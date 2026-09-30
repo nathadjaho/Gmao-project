@@ -51,7 +51,7 @@ function OnboardingPage() {
             Étape 2 sur 2
           </div>
           <div className="flex items-center gap-2">
-            <Building2 className="size-5 text-accent" />
+            <Building2 className="size-5 text-foreground" />
             <h1 className="text-2xl font-bold tracking-tight">Votre organisation</h1>
           </div>
           <p className="text-sm text-muted-foreground mt-1">

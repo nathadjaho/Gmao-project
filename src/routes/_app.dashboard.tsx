@@ -1,482 +1,737 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import type { ReactNode } from "react";
-import {
-  AlertTriangle,
-  CalendarClock,
-  CheckCircle2,
-  ChevronRight,
-  ClipboardCheck,
-  FileWarning,
-  Package,
-  Wrench,
-} from "lucide-react";
-import { PageHeader } from "@/components/PageHeader";
+import { useMemo, useState, type ReactNode } from "react";
+import { ArrowRight, ClipboardList, FileText, Plus } from "lucide-react";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useAuth, useIsAdmin } from "@/features/auth/use-auth";
 import { initials } from "@/features/auth/roles";
-import { CriticalityDots } from "@/features/equipment/components/CriticalityDots";
 import {
-  brokenEquipmentQuery,
   dashboardSummaryQuery,
+  expiringDocumentsQuery,
   localToday,
-  recentActivityQuery,
-  upcomingInterventionsQuery,
+  openInterventionsQuery,
+  submittedInterventionsQuery,
   type DashboardSummary,
 } from "@/features/dashboard/dashboard-api";
-import { INTERVENTION_STATUS, PRIORITY_LABELS } from "@/features/interventions/intervention-model";
+import {
+  INTERVENTION_STATUS,
+  type InterventionStatus,
+} from "@/features/interventions/intervention-model";
+import {
+  addDays,
+  countdown,
+  daysUntil,
+  DUE_BG,
+  DUE_TEXT,
+  dueLevel,
+  relativeDue,
+  relativeExpiry,
+  timeUsed,
+  toLocalDate,
+  type DueLevel,
+} from "@/lib/due";
 import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
+// D18 : « Aujourd'hui » remplace le Dashboard. L'URL reste /dashboard (redirections auth inchangées).
 export const Route = createFileRoute("/_app/dashboard")({
-  head: () => ({ meta: [{ title: "Dashboard — ForgeOS GMAO" }] }),
-  component: Dashboard,
+  head: () => ({ meta: [{ title: "Aujourd'hui — ForgeOS GMAO" }] }),
+  component: TodayPage,
 });
+
+const PAST_DAYS = 7;
+const NEXT_DAYS = 14;
+const DOC_HORIZON = 30;
 
 const longDate = new Intl.DateTimeFormat("fr-FR", {
   weekday: "long",
   day: "numeric",
   month: "long",
-  year: "numeric",
 });
+const weekday = new Intl.DateTimeFormat("fr-FR", { weekday: "short" });
+const shortDate = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short" });
+const asDate = (iso: string) => new Date(`${iso}T00:00:00`);
 
-function Dashboard() {
+/* ---------- Modèle commun : une échéance, quelle que soit sa source ---------- */
+
+type DueItem = {
+  key: string;
+  kind: "intervention" | "document";
+  id: string;
+  title: string;
+  code: string | null;
+  place: string | null;
+  date: string | null;
+  days: number | null;
+  level: DueLevel;
+  createdAt: string;
+  who: string | null;
+  status: InterventionStatus | null;
+};
+
+type Person = { full_name: string | null; email: string | null } | null;
+const personName = (p: Person) => (p ? p.full_name || p.email : null);
+
+function TodayPage() {
   const auth = useAuth();
   const isAdmin = useIsAdmin();
   const today = localToday();
+  const scope = isAdmin ? null : auth.userId;
+
   const summary = useQuery(dashboardSummaryQuery(today));
-  const s = summary.data;
+  const open = useQuery(openInterventionsQuery(scope));
+  const submitted = useQuery(submittedInterventionsQuery(scope));
+  const docs = useQuery({
+    ...expiringDocumentsQuery(addDays(today, DOC_HORIZON)),
+    enabled: isAdmin,
+  });
+
+  const [day, setDay] = useState<number | null>(null);
+
+  const items = useMemo<DueItem[]>(() => {
+    const out: DueItem[] = [];
+    for (const i of open.data ?? []) {
+      const days = daysUntil(i.due_date, today);
+      out.push({
+        key: `i-${i.id}`,
+        kind: "intervention",
+        id: i.id,
+        title: i.title,
+        code: i.equipment?.code ?? null,
+        place: i.equipment?.name ?? null,
+        date: i.due_date,
+        days,
+        level: dueLevel(days),
+        createdAt: i.created_at,
+        who: personName(i.assignee),
+        status: i.status,
+      });
+    }
+    for (const d of docs.data ?? []) {
+      const days = daysUntil(d.expires_on, today);
+      const eq = d.links.find((l) => l.equipment)?.equipment ?? null;
+      out.push({
+        key: `d-${d.id}`,
+        kind: "document",
+        id: d.id,
+        title: d.name,
+        code: eq?.code ?? null,
+        place: eq?.name ?? null,
+        date: d.expires_on,
+        days,
+        level: dueLevel(days),
+        createdAt: d.created_at,
+        who: null,
+        status: null,
+      });
+    }
+    return out.sort((a, b) => (a.days ?? Infinity) - (b.days ?? Infinity));
+  }, [open.data, docs.data, today]);
+
+  const visible = day === null ? items : items.filter((x) => x.days === day);
+  const lateCount = items.filter((x) => x.level === "late").length;
+  const soonCount = items.filter((x) => x.level === "soon").length;
+  const loading = open.isPending || (isAdmin && docs.isPending);
+  const error = open.error ?? submitted.error ?? docs.error ?? summary.error;
+  const firstName = auth.fullName?.split(" ")[0];
 
   return (
-    <div className="p-6 md:p-8 max-w-[1400px] mx-auto">
-      <PageHeader
-        eyebrow={`Vue d'ensemble · ${longDate.format(new Date())}`}
-        title={
-          isAdmin
-            ? "Centre de pilotage maintenance"
-            : `Bonjour ${auth.fullName?.split(" ")[0] ?? ""}`.trim()
-        }
-        description={
-          isAdmin
-            ? "Ce qui demande votre attention aujourd'hui."
-            : "Vos interventions et l'état du parc."
-        }
-      />
+    <div className="max-w-[1400px] mx-auto px-4 md:px-8 py-8">
+      <header className="flex flex-wrap items-end justify-between gap-4 mb-7">
+        <div>
+          <div className="text-sm text-muted-foreground first-letter:uppercase">
+            {longDate.format(asDate(today))}
+            {firstName ? ` · ${firstName}` : ""}
+          </div>
+          <h1 className="text-2xl md:text-[28px] font-semibold tracking-tight leading-tight mt-1 text-balance">
+            {loading ? (
+              "Chargement de vos échéances…"
+            ) : (
+              <Headline
+                isAdmin={isAdmin}
+                late={lateCount}
+                soon={soonCount}
+                open={items.filter((x) => x.kind === "intervention").length}
+                toValidate={submitted.data?.length ?? 0}
+              />
+            )}
+          </h1>
+        </div>
+        {isAdmin && (
+          <Link
+            to="/interventions"
+            search={{ create: true }}
+            className="inline-flex items-center gap-2 h-10 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+          >
+            <Plus className="size-4" /> Nouvelle intervention
+          </Link>
+        )}
+      </header>
 
-      {summary.isError && (
+      {error && (
         <div className="mb-6 rounded-md border border-critical/30 bg-critical/5 px-4 py-3 text-sm text-critical">
-          Impossible de charger les indicateurs : {summary.error.message}
+          Impossible de charger certaines données : {error.message}
         </div>
       )}
 
-      {s && s.equipment.total === 0 && isAdmin && <GettingStarted />}
+      {isAdmin && summary.data && summary.data.equipment.total === 0 && <GettingStarted />}
 
-      <KpiRow s={s} isAdmin={isAdmin} />
+      <Timeline items={items} today={today} selected={day} onSelect={setDay} />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          <UpcomingCard userId={isAdmin ? null : auth.userId} today={today} />
-          <ActivityCard />
+      {isAdmin ? (
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-10 items-start">
+          <section aria-labelledby="due-title">
+            <SectionTitle id="due-title" count={visible.length}>
+              Échéancier
+              {day !== null && <ClearDay day={day} today={today} onClear={() => setDay(null)} />}
+            </SectionTitle>
+            <DueList items={visible} today={today} loading={loading} />
+          </section>
+          <aside className="space-y-10">
+            <ValidationQueue rows={submitted.data} today={today} />
+            <Fleet s={summary.data} />
+          </aside>
         </div>
-        <div className="space-y-6">
-          <FleetCard s={s} />
-          <BrokenCard />
-          {s && s.documents.expiring_30d + s.documents.expired > 0 && <DocumentsAlert s={s} />}
+      ) : (
+        <div className="space-y-10">
+          <section aria-labelledby="mine-title">
+            <SectionTitle id="mine-title" count={visible.length}>
+              Ma file, par échéance
+              {day !== null && <ClearDay day={day} today={today} onClear={() => setDay(null)} />}
+            </SectionTitle>
+            <TechCards items={visible} loading={loading} />
+          </section>
+          <WaitingValidation rows={submitted.data} />
         </div>
-      </div>
+      )}
     </div>
   );
 }
 
-/* ---------- KPI ---------- */
+/* ---------- En-tête : la réponse d'abord ---------- */
 
-function KpiRow({ s, isAdmin }: { s: DashboardSummary | undefined; isAdmin: boolean }) {
-  const i = s?.interventions;
-  const v = (n: number | undefined) => (n === undefined ? "—" : String(n));
+function Headline(p: {
+  isAdmin: boolean;
+  late: number;
+  soon: number;
+  open: number;
+  toValidate: number;
+}) {
+  const s = (n: number, one: string, many: string) => (n > 1 ? many : one);
+  const late =
+    p.late > 0 ? (
+      <span className="text-late">
+        {p.late} {p.isAdmin ? s(p.late, "échéance dépassée", "échéances dépassées") : "en retard"}
+      </span>
+    ) : null;
 
-  // Chaque carte mène à la liste filtrée correspondante : un chiffre doit toujours être « cliquable vers le détail ».
+  if (p.isAdmin) {
+    const rest = `${p.soon} pour aujourd'hui et demain, ${p.toValidate} à valider.`;
+    return late ? (
+      <>
+        {late}, {rest}
+      </>
+    ) : (
+      <>Rien en retard. {rest.charAt(0).toUpperCase() + rest.slice(1)}</>
+    );
+  }
+  const rest = `${p.open} ${s(p.open, "intervention", "interventions")} dans votre file.`;
+  return late ? (
+    <>
+      {late}, {rest}
+    </>
+  ) : (
+    <>Rien en retard. {rest.charAt(0).toUpperCase() + rest.slice(1)}</>
+  );
+}
+
+/* ---------- Frise : 7 jours passés → 14 jours à venir ---------- */
+
+function Timeline({
+  items,
+  today,
+  selected,
+  onSelect,
+}: {
+  items: DueItem[];
+  today: string;
+  selected: number | null;
+  onSelect: (d: number | null) => void;
+}) {
+  const days = Array.from({ length: PAST_DAYS + NEXT_DAYS + 1 }, (_, k) => k - PAST_DAYS);
+  // Les échéances antérieures à la fenêtre restent visibles : on les empile sur le premier jour.
+  const at = (offset: number) =>
+    items.filter((x) =>
+      x.days === null ? false : offset === -PAST_DAYS ? x.days <= offset : x.days === offset,
+    );
+
   return (
-    <section className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-      {isAdmin ? (
-        <>
-          <Kpi
-            label="À valider"
-            value={v(i?.to_validate)}
-            hint="Soumises par les techniciens"
-            tone={i && i.to_validate > 0 ? "accent" : undefined}
-            icon={<ClipboardCheck className="size-4" />}
-            link={{ to: "/interventions", search: { view: "to_validate" } }}
-          />
-          <Kpi
-            label="En retard"
-            value={v(i?.overdue)}
-            hint="Échéance dépassée, non soumises"
-            tone={i && i.overdue > 0 ? "critical" : undefined}
-            icon={<CalendarClock className="size-4" />}
-            link={{ to: "/interventions", search: { view: "open" } }}
-          />
-          <Kpi
-            label="Ouvertes"
-            value={v(i?.open)}
-            hint="À faire + en cours"
-            icon={<Wrench className="size-4" />}
-            link={{ to: "/interventions", search: { view: "open" } }}
-          />
-        </>
-      ) : (
-        <>
-          <Kpi
-            label="Mes interventions"
-            value={v(i?.mine_open)}
-            hint="À faire + en cours"
-            tone={i && i.mine_open > 0 ? "accent" : undefined}
-            icon={<Wrench className="size-4" />}
-            link={{ to: "/interventions", search: { view: "mine" } }}
-          />
-          <Kpi
-            label="Mes retards"
-            value={v(i?.mine_overdue)}
-            hint="Échéance dépassée"
-            tone={i && i.mine_overdue > 0 ? "critical" : undefined}
-            icon={<CalendarClock className="size-4" />}
-            link={{ to: "/interventions", search: { view: "mine" } }}
-          />
-          <Kpi
-            label="En attente de validation"
-            value={v(i?.mine_submitted)}
-            hint="Soumises, verrouillées"
-            icon={<ClipboardCheck className="size-4" />}
-            link={{ to: "/interventions", search: { view: "mine" } }}
-          />
-        </>
-      )}
-      <Kpi
-        label="Équipements en panne"
-        value={v(s?.equipment.broken_down)}
-        hint={s ? `sur ${s.equipment.total} suivis` : ""}
-        tone={s && s.equipment.broken_down > 0 ? "critical" : undefined}
-        icon={<AlertTriangle className="size-4" />}
-        link={{ to: "/equipment", search: { status: "broken_down" } }}
-      />
+    <section
+      className="rounded-lg border border-border bg-card px-3 pt-3 pb-2 mb-9"
+      aria-label="Frise des échéances"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2 px-1 mb-2">
+        <h2 className="text-[13px] font-semibold">Échéances · 7 jours passés → 14 jours à venir</h2>
+        <Legend />
+      </div>
+      <div className="grid grid-flow-col auto-cols-[minmax(0,1fr)] gap-0.5 overflow-x-auto">
+        {days.map((o) => {
+          const date = addDays(today, o);
+          const dow = asDate(date).getDay();
+          const its = at(o);
+          const isToday = o === 0;
+          return (
+            <button
+              key={o}
+              type="button"
+              onClick={() => onSelect(selected === o ? null : o)}
+              aria-pressed={selected === o}
+              aria-label={`${shortDate.format(asDate(date))} : ${its.length} échéance${its.length > 1 ? "s" : ""}`}
+              className={cn(
+                "min-w-8 flex flex-col items-center gap-1 pt-2 pb-1.5 min-h-[84px] rounded-md transition-colors",
+                isToday ? "bg-primary text-primary-foreground" : "hover:bg-secondary",
+                !isToday &&
+                  (dow === 0 || dow === 6) &&
+                  "bg-[repeating-linear-gradient(135deg,transparent_0_5px,var(--color-secondary)_5px_6px)]",
+                selected === o && "ring-2 ring-ring ring-inset",
+              )}
+            >
+              <span
+                className={cn(
+                  "text-[10px] uppercase tracking-wide",
+                  isToday ? "text-primary-foreground/70" : "text-muted-foreground",
+                )}
+              >
+                {weekday.format(asDate(date)).replace(".", "")}
+              </span>
+              <span
+                className={cn(
+                  "font-mono text-[13px] font-medium",
+                  o < 0 && !isToday && "text-muted-foreground",
+                )}
+              >
+                {asDate(date).getDate()}
+              </span>
+              <span className="flex flex-col items-center gap-[3px] mt-0.5">
+                {its.slice(0, 5).map((x) => (
+                  <span
+                    key={x.key}
+                    className={cn(
+                      "size-2",
+                      DUE_BG[x.level],
+                      x.kind === "document"
+                        ? "rotate-45 rounded-[1px] size-[7px] my-px"
+                        : "rounded-full",
+                      isToday && "ring-[1.5px] ring-primary",
+                    )}
+                  />
+                ))}
+                {its.length > 5 && <span className="text-[10px] font-mono">+{its.length - 5}</span>}
+              </span>
+            </button>
+          );
+        })}
+      </div>
     </section>
   );
 }
 
-type KpiLink =
-  | { to: "/interventions"; search: { view: "to_validate" | "open" | "mine" } }
-  | { to: "/equipment"; search: { status: "broken_down" } };
-
-function Kpi({
-  label,
-  value,
-  hint,
-  tone,
-  icon,
-  link,
-}: {
-  label: string;
-  value: string;
-  hint: string;
-  tone?: "accent" | "critical";
-  icon: ReactNode;
-  link: KpiLink;
-}) {
-  return (
-    <Link
-      {...link}
-      className="group rounded-xl border border-border bg-card p-5 shadow-card hover:border-foreground/20 transition-colors"
-    >
-      <div className="flex items-start justify-between mb-3">
-        <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">
-          {label}
-        </div>
-        <div
-          className={cn(
-            "size-7 rounded-md flex items-center justify-center",
-            tone === "critical"
-              ? "bg-critical/10 text-critical"
-              : tone === "accent"
-                ? "bg-accent/10 text-accent"
-                : "bg-secondary text-foreground/60",
-          )}
-        >
-          {icon}
-        </div>
-      </div>
-      <div
-        className={cn(
-          "text-3xl font-bold tracking-tight font-mono",
-          tone === "critical" && "text-critical",
-        )}
-      >
-        {value}
-      </div>
-      <div className="mt-1 text-[11px] text-muted-foreground flex items-center justify-between">
-        <span>{hint}</span>
-        <ChevronRight className="size-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
-      </div>
-    </Link>
+function Legend() {
+  const dot = (cls: string, label: string) => (
+    <span className="inline-flex items-center gap-1.5">
+      <span className={cn("size-2 rounded-full", cls)} />
+      {label}
+    </span>
   );
-}
-
-/* ---------- Colonne principale ---------- */
-
-function UpcomingCard({ userId, today }: { userId: string | null; today: string }) {
-  const { data, isPending } = useQuery(upcomingInterventionsQuery(userId));
   return (
-    <Card>
-      <CardHeader
-        title={userId ? "Mes prochaines interventions" : "Prochaines échéances"}
-        subtitle="Interventions à faire ou en cours, les plus urgentes d'abord"
-        link={{
-          to: "/interventions",
-          search: { view: userId ? "mine" : "open" },
-          label: "Tout voir",
-        }}
-      />
-      {isPending ? (
-        <Empty>Chargement…</Empty>
-      ) : !data?.length ? (
-        <Empty>
-          <CheckCircle2 className="size-5 mx-auto mb-2 text-success" />
-          Rien en attente.
-        </Empty>
-      ) : (
-        <ul className="divide-y divide-border">
-          {data.map((it) => {
-            const overdue = it.due_date !== null && it.due_date < today;
-            return (
-              <li key={it.id}>
-                <Link
-                  to="/interventions/$id"
-                  params={{ id: it.id }}
-                  className="flex items-center gap-4 px-5 py-3.5 hover:bg-secondary/40 transition-colors"
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-semibold truncate">{it.title}</div>
-                    <div className="text-[11px] text-muted-foreground truncate">
-                      {it.equipment ? `${it.equipment.code} · ${it.equipment.name}` : "—"}
-                      {" · "}
-                      {PRIORITY_LABELS[it.priority]}
-                      {!userId &&
-                        ` · ${it.assignee?.full_name || it.assignee?.email || "Non assignée"}`}
-                    </div>
-                  </div>
-                  <div
-                    className={cn(
-                      "hidden sm:block text-xs text-right w-28",
-                      overdue ? "text-critical font-semibold" : "text-muted-foreground",
-                    )}
-                  >
-                    {it.due_date
-                      ? overdue
-                        ? `En retard · ${formatDate(it.due_date)}`
-                        : formatDate(it.due_date)
-                      : "Sans échéance"}
-                  </div>
-                  <StatusBadge variant={INTERVENTION_STATUS[it.status].badge}>
-                    {INTERVENTION_STATUS[it.status].label}
-                  </StatusBadge>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </Card>
-  );
-}
-
-const ACTIVITY_VERB: Record<string, string> = {
-  todo: "a créé",
-  in_progress: "a démarré",
-  submitted: "a soumis",
-  done: "a validé",
-  cancelled: "a annulé",
-};
-
-function activityVerb(from: string | null, to: string): string {
-  if (to === "in_progress" && from === "submitted") return "a renvoyé pour reprise";
-  if (to === "in_progress" && (from === "done" || from === "cancelled")) return "a rouvert";
-  return ACTIVITY_VERB[to] ?? "a modifié";
-}
-
-const timeFmt = new Intl.DateTimeFormat("fr-FR", {
-  day: "2-digit",
-  month: "short",
-  hour: "2-digit",
-  minute: "2-digit",
-});
-
-function ActivityCard() {
-  const { data, isPending } = useQuery(recentActivityQuery);
-  return (
-    <Card>
-      <CardHeader
-        title="Activité récente"
-        subtitle="Derniers changements de statut des interventions"
-      />
-      {isPending ? (
-        <Empty>Chargement…</Empty>
-      ) : !data?.length ? (
-        <Empty>Aucune activité pour le moment.</Empty>
-      ) : (
-        <ul className="px-5 py-4 space-y-4">
-          {data.map((e) => {
-            const who = e.author?.full_name || e.author?.email || "Système";
-            return (
-              <li key={e.id} className="flex gap-3 items-start">
-                <div className="size-8 rounded-full bg-secondary flex items-center justify-center shrink-0 text-[10px] font-bold text-muted-foreground">
-                  {initials(who)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm">
-                    <span className="font-semibold">{who}</span>{" "}
-                    <span className="text-muted-foreground">
-                      {activityVerb(e.from_status, e.to_status)}
-                    </span>{" "}
-                    {e.intervention ? (
-                      <Link
-                        to="/interventions/$id"
-                        params={{ id: e.intervention.id }}
-                        className="font-semibold hover:underline"
-                      >
-                        {e.intervention.title}
-                      </Link>
-                    ) : (
-                      "une intervention"
-                    )}
-                  </p>
-                  {e.reason && (
-                    <p className="text-xs italic text-muted-foreground truncate">« {e.reason} »</p>
-                  )}
-                  <p className="text-[10px] text-muted-foreground font-mono uppercase tracking-wider mt-0.5">
-                    {timeFmt.format(new Date(e.changed_at))}
-                  </p>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </Card>
-  );
-}
-
-/* ---------- Colonne de droite ---------- */
-
-function FleetCard({ s }: { s: DashboardSummary | undefined }) {
-  const e = s?.equipment;
-  const rows = [
-    { label: "En service", count: e?.in_service ?? 0, color: "bg-success" },
-    { label: "En panne", count: e?.broken_down ?? 0, color: "bg-critical" },
-    { label: "Hors service", count: e?.out_of_service ?? 0, color: "bg-steel" },
-  ];
-  return (
-    <Card>
-      <CardHeader
-        title="État du parc"
-        subtitle={
-          e ? `${e.total} équipement${e.total > 1 ? "s" : ""} suivi${e.total > 1 ? "s" : ""}` : "…"
-        }
-        link={{ to: "/equipment", label: "Équipements" }}
-      />
-      <div className="p-5 space-y-4">
-        {rows.map((r) => {
-          const pct = e && e.total > 0 ? (r.count / e.total) * 100 : 0;
-          return (
-            <div key={r.label}>
-              <div className="flex items-center justify-between text-xs mb-1.5">
-                <span className="text-muted-foreground">{r.label}</span>
-                <span className="font-mono font-bold">
-                  {r.count}
-                  <span className="text-muted-foreground font-normal"> · {Math.round(pct)} %</span>
-                </span>
-              </div>
-              <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
-                <div className={`h-full ${r.color}`} style={{ width: `${pct}%` }} />
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </Card>
-  );
-}
-
-function BrokenCard() {
-  const { data } = useQuery(brokenEquipmentQuery);
-  if (!data?.length) return null;
-  return (
-    <Card>
-      <CardHeader title="Équipements en panne" subtitle="Par criticité décroissante" />
-      <ul className="divide-y divide-border">
-        {data.map((eq) => (
-          <li key={eq.id}>
-            <Link
-              to="/equipment/$id"
-              params={{ id: eq.id }}
-              className="flex items-center gap-3 px-5 py-3 hover:bg-secondary/40 transition-colors"
-            >
-              <Package className="size-4 text-critical shrink-0" />
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold truncate">
-                  <span className="font-mono text-[11px] text-muted-foreground mr-1.5">
-                    {eq.code}
-                  </span>
-                  {eq.name}
-                </div>
-                {eq.location && (
-                  <div className="text-[11px] text-muted-foreground truncate">{eq.location}</div>
-                )}
-              </div>
-              <CriticalityDots level={eq.criticality} />
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </Card>
-  );
-}
-
-function DocumentsAlert({ s }: { s: DashboardSummary }) {
-  return (
-    <div className="rounded-xl border border-warning/30 bg-warning/5 p-5">
-      <div className="flex items-center gap-2 text-sm font-bold">
-        <FileWarning className="size-4 text-warning" /> Documents à renouveler
-      </div>
-      <p className="text-xs text-muted-foreground mt-1.5">
-        {s.documents.expired > 0 &&
-          `${s.documents.expired} expiré${s.documents.expired > 1 ? "s" : ""}. `}
-        {s.documents.expiring_30d > 0 &&
-          `${s.documents.expiring_30d} expire${s.documents.expiring_30d > 1 ? "nt" : ""} dans les 30 jours.`}
-      </p>
+    <div className="hidden md:flex flex-wrap items-center gap-3.5 text-xs text-muted-foreground">
+      {dot("bg-late", "Dépassé")}
+      {dot("bg-soon", "Aujourd'hui / demain")}
+      {dot("bg-foreground", "7 jours")}
+      {dot("bg-steel", "Plus tard")}
+      <span>● intervention · ◆ document</span>
     </div>
   );
 }
 
+function ClearDay({ day, today, onClear }: { day: number; today: string; onClear: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClear}
+      className="ml-2 text-xs font-normal text-muted-foreground underline underline-offset-2 hover:text-foreground"
+    >
+      {shortDate.format(asDate(addDays(today, day)))} · retirer le filtre
+    </button>
+  );
+}
+
+/* ---------- Échéancier (admin) ---------- */
+
+const GROUPS: { level: DueLevel; label: string }[] = [
+  { level: "late", label: "En retard / expiré" },
+  { level: "soon", label: "Aujourd'hui et demain" },
+  { level: "week", label: "7 prochains jours" },
+  { level: "later", label: "Plus tard" },
+  { level: "none", label: "Sans échéance" },
+];
+
+function DueList({ items, today, loading }: { items: DueItem[]; today: string; loading: boolean }) {
+  if (loading) return <Empty>Chargement…</Empty>;
+  if (items.length === 0) return <Empty>Aucune échéance. Tout est à jour.</Empty>;
+  return (
+    <div>
+      {GROUPS.map((g) => {
+        const rows = items.filter((x) => x.level === g.level);
+        if (rows.length === 0) return null;
+        return (
+          <div key={g.level} className="mt-6 first:mt-3">
+            <h3
+              className={cn(
+                "flex items-center gap-2 pb-2 border-b border-border text-xs font-semibold uppercase tracking-wider",
+                g.level === "week" ? "text-foreground" : DUE_TEXT[g.level],
+              )}
+            >
+              {g.label}
+              <span className="font-mono font-medium text-steel">{rows.length}</span>
+            </h3>
+            {rows.map((x) => (
+              <DueRow key={x.key} item={x} today={today} />
+            ))}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function DueRow({ item: x, today }: { item: DueItem; today: string }) {
+  const rel = x.kind === "document" ? relativeExpiry(x.days) : relativeDue(x.days);
+  return (
+    <ItemLink
+      item={x}
+      className="grid grid-cols-[104px_minmax(0,1fr)] md:grid-cols-[120px_minmax(0,1fr)_170px_110px] items-center gap-x-4 gap-y-1 px-2 pt-3 pb-2.5 border-b border-border hover:bg-secondary/70 transition-colors"
+    >
+      <span
+        className={cn("font-mono text-[12.5px] font-semibold leading-tight", DUE_TEXT[x.level])}
+      >
+        {rel}
+        {x.date && (
+          <span className="block font-normal text-[11px] text-steel mt-0.5">
+            {shortDate.format(asDate(x.date))}
+          </span>
+        )}
+      </span>
+      <span className="min-w-0">
+        <span className="flex items-center gap-2 font-medium truncate">
+          {x.kind === "document" ? (
+            <FileText className="size-3.5 shrink-0 text-muted-foreground" aria-label="Document" />
+          ) : (
+            <ClipboardList
+              className="size-3.5 shrink-0 text-muted-foreground"
+              aria-label="Intervention"
+            />
+          )}
+          <span className="truncate">{x.title}</span>
+        </span>
+        <span className="block text-xs text-muted-foreground truncate mt-0.5">
+          {x.code && <span className="font-mono text-foreground/80">{x.code}</span>}
+          {x.code && x.place && " · "}
+          {x.place}
+        </span>
+      </span>
+      <span className="hidden md:flex items-center gap-2 text-xs text-muted-foreground min-w-0">
+        {x.kind === "intervention" ? (
+          x.who ? (
+            <>
+              <Avatar name={x.who} />
+              <span className="truncate">{x.who}</span>
+            </>
+          ) : (
+            <span className="text-soon">Non assignée</span>
+          )
+        ) : (
+          <span>Certificat à renouveler</span>
+        )}
+      </span>
+      <span className="hidden md:block">
+        {x.status ? (
+          <StatusBadge variant={INTERVENTION_STATUS[x.status].badge}>
+            {INTERVENTION_STATUS[x.status].label}
+          </StatusBadge>
+        ) : (
+          <StatusBadge variant={x.level === "late" ? "critical" : "warning"}>
+            {x.level === "late" ? "Expiré" : "À renouveler"}
+          </StatusBadge>
+        )}
+      </span>
+      {x.kind === "intervention" && x.date && (
+        <span className="col-span-full h-[3px] rounded-full bg-border overflow-hidden" aria-hidden>
+          <span
+            className={cn(
+              "block h-full rounded-full",
+              x.level === "later" ? "bg-input" : DUE_BG[x.level],
+            )}
+            style={{ width: `${timeUsed(x.createdAt, x.date, today)}%` }}
+          />
+        </span>
+      )}
+    </ItemLink>
+  );
+}
+
+/* ---------- File « À valider » (admin) ---------- */
+
+type SubmittedRow = {
+  id: string;
+  title: string;
+  submitted_at: string | null;
+  equipment: { code: string; name: string } | null;
+  assignee: Person;
+};
+
+function ValidationQueue({ rows, today }: { rows: SubmittedRow[] | undefined; today: string }) {
+  // Les plus anciennes d'abord : une validation qui traîne est aussi un retard.
+  return (
+    <section aria-labelledby="queue-title">
+      <SectionTitle
+        id="queue-title"
+        count={rows?.length}
+        action={
+          <Link
+            to="/interventions"
+            search={{ view: "to_validate" }}
+            className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+          >
+            Tout voir <ArrowRight className="size-3" />
+          </Link>
+        }
+      >
+        À valider
+      </SectionTitle>
+      <div className="border-t border-border">
+        {!rows ? (
+          <Empty>Chargement…</Empty>
+        ) : rows.length === 0 ? (
+          <Empty>Rien à valider.</Empty>
+        ) : (
+          rows.slice(0, 6).map((r) => {
+            const wait = r.submitted_at ? -(daysUntil(toLocalDate(r.submitted_at), today) ?? 0) : 0;
+            return (
+              <Link
+                key={r.id}
+                to="/interventions/$id"
+                params={{ id: r.id }}
+                className="block py-3 border-b border-border hover:bg-secondary/70 transition-colors px-1 -mx-1 rounded-sm"
+              >
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="font-medium truncate">{r.title}</span>
+                  <span
+                    className={cn(
+                      "font-mono text-xs font-semibold whitespace-nowrap",
+                      wait >= 2 ? "text-late" : wait === 1 ? "text-soon" : "text-muted-foreground",
+                    )}
+                  >
+                    {wait === 0 ? "soumise auj." : `attend ${wait} j`}
+                  </span>
+                </div>
+                <div className="text-xs text-muted-foreground truncate mt-0.5">
+                  {r.equipment && (
+                    <span className="font-mono text-foreground/80">{r.equipment.code}</span>
+                  )}
+                  {r.equipment && " · "}
+                  {personName(r.assignee) ?? "—"}
+                </div>
+                <div className="mt-2 text-xs font-medium inline-flex items-center gap-1">
+                  Examiner le rapport <ArrowRight className="size-3" />
+                </div>
+              </Link>
+            );
+          })
+        )}
+      </div>
+    </section>
+  );
+}
+
+/* ---------- État du parc (remplace l'ancien Dashboard) ---------- */
+
+function Fleet({ s }: { s: DashboardSummary | undefined }) {
+  const e = s?.equipment;
+  const v = (n: number | undefined) => (n === undefined ? "—" : String(n));
+  const cells = [
+    {
+      status: "in_service" as const,
+      n: e?.in_service,
+      label: "En service",
+      variant: "operational" as const,
+    },
+    {
+      status: "broken_down" as const,
+      n: e?.broken_down,
+      label: "En panne",
+      variant: "critical" as const,
+    },
+    {
+      status: "out_of_service" as const,
+      n: e?.out_of_service,
+      label: "Hors service",
+      variant: "neutral" as const,
+    },
+  ];
+  return (
+    <section aria-labelledby="fleet-title">
+      <SectionTitle id="fleet-title" count={e?.total}>
+        État du parc
+      </SectionTitle>
+      <div className="grid grid-cols-3 gap-px bg-border border border-border rounded-lg overflow-hidden mt-2">
+        {cells.map((c) => (
+          <Link
+            key={c.status}
+            to="/equipment"
+            search={{ status: c.status }}
+            className="bg-card p-3.5 hover:bg-secondary/60 transition-colors"
+          >
+            <b
+              className={cn(
+                "block font-mono text-[22px] font-semibold leading-tight",
+                c.status === "broken_down" && (c.n ?? 0) > 0 && "text-late",
+              )}
+            >
+              {v(c.n)}
+            </b>
+            <StatusBadge variant={c.variant} className="mt-1 text-muted-foreground">
+              {c.label}
+            </StatusBadge>
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/* ---------- Vue technicien ---------- */
+
+const CARD_BORDER: Record<DueLevel, string> = {
+  late: "border-l-late",
+  soon: "border-l-soon",
+  week: "border-l-foreground",
+  later: "border-l-input",
+  none: "border-l-input",
+};
+
+function TechCards({ items, loading }: { items: DueItem[]; loading: boolean }) {
+  if (loading) return <Empty>Chargement…</Empty>;
+  if (items.length === 0) return <Empty>Rien dans votre file. Bon travail.</Empty>;
+  return (
+    <div className="grid gap-2.5 mt-3">
+      {items.map((x) => (
+        <div
+          key={x.key}
+          className={cn(
+            "grid grid-cols-[76px_minmax(0,1fr)] sm:grid-cols-[96px_minmax(0,1fr)_auto] items-center gap-4 rounded-lg border border-border border-l-4 bg-card p-4 min-h-[88px]",
+            CARD_BORDER[x.level],
+          )}
+        >
+          <div
+            className={cn(
+              "font-mono text-xl sm:text-2xl font-semibold leading-none",
+              DUE_TEXT[x.level],
+            )}
+          >
+            {countdown(x.days)}
+            <span className="block mt-1.5 font-sans text-xs font-normal text-muted-foreground">
+              {x.date ? shortDate.format(asDate(x.date)) : "sans échéance"}
+            </span>
+          </div>
+          <div className="min-w-0">
+            <div className="font-medium truncate">{x.title}</div>
+            <div className="text-xs text-muted-foreground truncate mt-0.5">
+              {x.code && <span className="font-mono text-foreground/80">{x.code}</span>}
+              {x.code && x.place && " · "}
+              {x.place}
+            </div>
+            {x.status && (
+              <StatusBadge variant={INTERVENTION_STATUS[x.status].badge} className="mt-2">
+                {INTERVENTION_STATUS[x.status].label}
+              </StatusBadge>
+            )}
+          </div>
+          <Link
+            to="/interventions/$id"
+            params={{ id: x.id }}
+            className={cn(
+              "col-span-2 sm:col-span-1 inline-flex items-center justify-center h-11 px-5 rounded-md text-sm font-medium transition-colors",
+              x.level === "late" || x.level === "soon"
+                ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                : "border border-input bg-card hover:bg-secondary",
+            )}
+          >
+            {x.status === "todo" ? "Commencer" : "Continuer"}
+          </Link>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function WaitingValidation({ rows }: { rows: SubmittedRow[] | undefined }) {
+  return (
+    <section aria-labelledby="wait-title">
+      <SectionTitle id="wait-title" count={rows?.length}>
+        En attente de validation
+      </SectionTitle>
+      <div className="border-t border-border">
+        {!rows ? (
+          <Empty>Chargement…</Empty>
+        ) : rows.length === 0 ? (
+          <Empty>Aucune intervention en attente.</Empty>
+        ) : (
+          rows.map((r) => (
+            <Link
+              key={r.id}
+              to="/interventions/$id"
+              params={{ id: r.id }}
+              className="flex items-center justify-between gap-4 py-3 px-1 border-b border-border hover:bg-secondary/70 transition-colors"
+            >
+              <span className="min-w-0">
+                <span className="block font-medium truncate">{r.title}</span>
+                <span className="block text-xs text-muted-foreground truncate mt-0.5">
+                  Soumise le {formatDate(r.submitted_at)} · figée jusqu'à la décision d'un admin
+                </span>
+              </span>
+              <StatusBadge variant="review">À valider</StatusBadge>
+            </Link>
+          ))
+        )}
+      </div>
+    </section>
+  );
+}
+
+/* ---------- Démarrage (organisation vide) ---------- */
+
 function GettingStarted() {
   return (
-    <div className="mb-8 rounded-xl border border-accent/30 bg-accent/5 p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+    <div className="mb-8 rounded-lg border border-border bg-card p-5 flex flex-col sm:flex-row sm:items-center gap-4">
       <div className="flex-1">
-        <div className="text-sm font-bold">Bienvenue ! Commencez par votre parc.</div>
-        <p className="text-xs text-muted-foreground mt-1">
-          Ajoutez vos équipements, puis votre équipe : le tableau de bord se remplira avec les
-          interventions.
+        <div className="text-sm font-semibold">Bienvenue ! Commencez par votre parc.</div>
+        <p className="text-sm text-muted-foreground mt-1">
+          Ajoutez vos équipements, puis votre équipe : cette page se remplira avec les échéances.
         </p>
       </div>
       <div className="flex gap-2">
         <Link
           to="/equipment"
-          className="h-9 px-3 rounded-md bg-primary text-primary-foreground text-xs font-semibold inline-flex items-center"
+          className="h-10 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium inline-flex items-center"
         >
           Ajouter un équipement
         </Link>
         <Link
           to="/team"
-          className="h-9 px-3 rounded-md border border-border bg-card text-xs font-semibold inline-flex items-center hover:bg-secondary"
+          className="h-10 px-4 rounded-md border border-input bg-card text-sm font-medium inline-flex items-center hover:bg-secondary"
         >
-          Inviter l'équipe
+          Créer l'équipe
         </Link>
       </div>
     </div>
@@ -485,51 +740,62 @@ function GettingStarted() {
 
 /* ---------- Briques ---------- */
 
-function Card({ children }: { children: ReactNode }) {
-  return (
-    <div className="rounded-xl border border-border bg-card shadow-card overflow-hidden">
+function ItemLink({
+  item,
+  className,
+  children,
+}: {
+  item: DueItem;
+  className: string;
+  children: ReactNode;
+}) {
+  return item.kind === "intervention" ? (
+    <Link to="/interventions/$id" params={{ id: item.id }} className={className}>
       {children}
+    </Link>
+  ) : (
+    <Link to="/documents/$id" params={{ id: item.id }} className={className}>
+      {children}
+    </Link>
+  );
+}
+
+function SectionTitle({
+  id,
+  count,
+  action,
+  children,
+}: {
+  id: string;
+  count?: number;
+  action?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 mb-1">
+      <h2 id={id} className="text-[15px] font-semibold flex flex-wrap items-center gap-2">
+        {children}
+        {count !== undefined && (
+          <span className="font-mono text-xs font-medium text-steel">{count}</span>
+        )}
+      </h2>
+      {action}
     </div>
   );
 }
 
-function Empty({ children }: { children: ReactNode }) {
-  return <div className="px-5 py-8 text-center text-sm text-muted-foreground">{children}</div>;
+function Avatar({ name }: { name: string }) {
+  return (
+    <span className="size-[22px] shrink-0 rounded-full bg-secondary border border-input text-[10px] font-semibold text-foreground/80 flex items-center justify-center">
+      {initials(name)}
+    </span>
+  );
 }
 
-type HeaderLink =
-  | { to: "/interventions"; search: { view: "open" | "mine" }; label: string }
-  | { to: "/equipment"; label: string };
-
-function CardHeader({
-  title,
-  subtitle,
-  link,
-}: {
-  title: string;
-  subtitle?: string;
-  link?: HeaderLink;
-}) {
+function Empty({ children }: { children: ReactNode }) {
   return (
-    <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-      <div>
-        <div className="text-sm font-bold tracking-tight">{title}</div>
-        {subtitle && <div className="text-[11px] text-muted-foreground mt-0.5">{subtitle}</div>}
-      </div>
-      {link &&
-        (link.to === "/interventions" ? (
-          <Link
-            to={link.to}
-            search={link.search}
-            className="text-[11px] font-semibold text-accent hover:underline"
-          >
-            {link.label} →
-          </Link>
-        ) : (
-          <Link to={link.to} className="text-[11px] font-semibold text-accent hover:underline">
-            {link.label} →
-          </Link>
-        ))}
+    <div className="py-8 text-center text-sm text-muted-foreground border-b border-border">
+      {children}
     </div>
   );
 }

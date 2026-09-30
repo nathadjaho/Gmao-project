@@ -39,22 +39,24 @@ export const dashboardSummaryQuery = (today: string) =>
     ...LIVE,
   });
 
-/** Interventions ouvertes, les plus urgentes d'abord (échéance la plus proche ; sans échéance à la fin). */
-export const upcomingInterventionsQuery = (userId: string | null) =>
+/* ---------- Écran « Aujourd'hui » (D18) ---------- */
+
+/** Interventions ouvertes avec leur échéance (toutes pour l'admin, les siennes pour le technicien). */
+export const openInterventionsQuery = (userId: string | null) =>
   queryOptions({
-    queryKey: [...dashboardKeys.all, "upcoming", userId],
+    queryKey: [...dashboardKeys.all, "open-due", userId],
     queryFn: async () => {
       let q = supabase
         .from("interventions")
         .select(
-          `id, title, priority, status, due_date,
-           equipment(code, name),
+          `id, title, status, priority, due_date, created_at,
+           equipment(id, code, name),
            assignee:profiles!interventions_assignee_profile_fk(full_name, email)`,
         )
         .in("status", ["todo", "in_progress"])
         .order("due_date", { ascending: true, nullsFirst: false })
-        .order("created_at", { ascending: false })
-        .limit(6);
+        .order("created_at", { ascending: true })
+        .limit(200);
       if (userId) q = q.eq("assigned_to", userId);
       const { data, error } = await q;
       if (error) throw error;
@@ -63,37 +65,46 @@ export const upcomingInterventionsQuery = (userId: string | null) =>
     ...LIVE,
   });
 
-export const recentActivityQuery = queryOptions({
-  queryKey: [...dashboardKeys.all, "activity"],
-  queryFn: async () => {
-    const { data, error } = await supabase
-      .from("intervention_status_history")
-      .select(
-        `id, from_status, to_status, reason, changed_at,
-         intervention:interventions(id, title),
-         author:profiles!status_history_changed_by_profile_fk(full_name, email)`,
-      )
-      .order("changed_at", { ascending: false })
-      .limit(8);
-    if (error) throw error;
-    return data;
-  },
-  ...LIVE,
-});
+/** Interventions soumises : file « À valider » (admin) ou « en attente » (technicien, les siennes). */
+export const submittedInterventionsQuery = (userId: string | null) =>
+  queryOptions({
+    queryKey: [...dashboardKeys.all, "submitted", userId],
+    queryFn: async () => {
+      let q = supabase
+        .from("interventions")
+        .select(
+          `id, title, submitted_at,
+           equipment(code, name),
+           assignee:profiles!interventions_assignee_profile_fk(full_name, email)`,
+        )
+        .eq("status", "submitted")
+        .order("submitted_at", { ascending: true })
+        .limit(30);
+      if (userId) q = q.eq("assigned_to", userId);
+      const { data, error } = await q;
+      if (error) throw error;
+      return data;
+    },
+    ...LIVE,
+  });
 
-export const brokenEquipmentQuery = queryOptions({
-  queryKey: [...dashboardKeys.all, "broken"],
-  queryFn: async () => {
-    const { data, error } = await supabase
-      .from("equipment")
-      .select("id, code, name, location, criticality")
-      .eq("status", "broken_down")
-      .is("deleted_at", null)
-      .order("criticality", { ascending: false })
-      .order("updated_at", { ascending: false })
-      .limit(5);
-    if (error) throw error;
-    return data;
-  },
-  ...LIVE,
-});
+/** Documents non archivés expirés ou qui expirent d'ici `until` (AAAA-MM-JJ). */
+export const expiringDocumentsQuery = (until: string) =>
+  queryOptions({
+    queryKey: [...dashboardKeys.all, "expiring", until],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("documents")
+        .select(
+          `id, name, expires_on, created_at, links:document_equipment(equipment(id, code, name))`,
+        )
+        .is("deleted_at", null)
+        .not("expires_on", "is", null)
+        .lte("expires_on", until)
+        .order("expires_on", { ascending: true })
+        .limit(50);
+      if (error) throw error;
+      return data;
+    },
+    ...LIVE,
+  });

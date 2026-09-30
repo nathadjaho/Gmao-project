@@ -1,5 +1,6 @@
 import { keepPreviousData, queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { localToday } from "@/features/dashboard/dashboard-api";
 import type {
   CreateInterventionValues,
   InterventionStatus,
@@ -9,9 +10,15 @@ import type {
 export const INTERVENTION_PAGE_SIZE = 20;
 
 /** Onglets de la liste : ce que l'utilisateur veut voir en premier. */
-export type InterventionView = "mine" | "to_validate" | "open" | "all";
+export type InterventionView = "mine" | "to_validate" | "open" | "overdue" | "all";
 
-export type InterventionListParams = { page: number; view: InterventionView; userId: string };
+export type InterventionListParams = {
+  page: number;
+  view: InterventionView;
+  userId: string;
+  /** Vue « En retard » d'un technicien : seulement ses interventions. */
+  onlyMine?: boolean;
+};
 
 export const interventionKeys = {
   all: ["interventions"] as const,
@@ -21,7 +28,7 @@ export const interventionKeys = {
 
 const OPEN: InterventionStatus[] = ["todo", "in_progress"];
 
-async function fetchInterventions({ page, view, userId }: InterventionListParams) {
+async function fetchInterventions({ page, view, userId, onlyMine }: InterventionListParams) {
   const from = (page - 1) * INTERVENTION_PAGE_SIZE;
   let q = supabase
     .from("interventions")
@@ -37,6 +44,11 @@ async function fetchInterventions({ page, view, userId }: InterventionListParams
   if (view === "mine") q = q.eq("assigned_to", userId).in("status", [...OPEN, "submitted"]);
   if (view === "to_validate") q = q.eq("status", "submitted");
   if (view === "open") q = q.in("status", OPEN);
+  // Même définition que le dashboard : échéance dépassée et pas encore soumise.
+  if (view === "overdue") {
+    q = q.in("status", OPEN).lt("due_date", localToday());
+    if (onlyMine) q = q.eq("assigned_to", userId);
+  }
 
   const { data, error, count } = await q;
   if (error) throw error;

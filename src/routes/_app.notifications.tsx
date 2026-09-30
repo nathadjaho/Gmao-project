@@ -28,7 +28,7 @@ export const Route = createFileRoute("/_app/notifications")({
 const TONE_CLASS = {
   critical: "bg-critical/10 text-critical",
   warning: "bg-warning/10 text-warning",
-  accent: "bg-accent/10 text-accent",
+  accent: "bg-secondary text-foreground",
   neutral: "bg-secondary text-muted-foreground",
 } as const;
 
@@ -142,7 +142,7 @@ function Notifications() {
                   onClick={() => open(n)}
                   className={cn(
                     "w-full text-left px-5 py-4 flex items-start gap-4 hover:bg-secondary/40 transition-colors",
-                    unread && "bg-accent/[0.04]",
+                    unread && "bg-secondary/60",
                   )}
                 >
                   <div
@@ -171,7 +171,7 @@ function Notifications() {
                       {relativeTime(n.created_at)}
                     </span>
                     {unread && (
-                      <span className="size-2 rounded-full bg-accent" aria-label="Non lue" />
+                      <span className="size-2 rounded-full bg-primary" aria-label="Non lue" />
                     )}
                   </div>
                 </button>

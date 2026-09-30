@@ -11,6 +11,9 @@ export const Route = createFileRoute("/_app")({
     const auth = await context.queryClient.ensureQueryData(authContextQuery);
     if (!auth) throw redirect({ to: "/", search: { redirect: location.href } });
     if (!auth.membership) throw redirect({ to: "/onboarding" });
+    // Mot de passe provisoire (vu par l'admin) : on bloque tout le reste tant qu'il n'est pas changé.
+    if (auth.mustChangePassword && location.pathname !== "/profile")
+      throw redirect({ to: "/profile" });
     // Exposé aux routes enfants via useRouteContext : membership est garanti non nul ici.
     return { auth: { ...auth, membership: auth.membership } };
   },

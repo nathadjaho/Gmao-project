@@ -13,6 +13,8 @@ export type AuthContext = {
   userId: string;
   email: string;
   fullName: string;
+  /** Compte créé par un admin : le mot de passe provisoire doit être changé avant tout. */
+  mustChangePassword: boolean;
   membership: Membership | null;
 };
 
@@ -37,7 +39,11 @@ async function fetchAuthContext(): Promise<AuthContext | null> {
       .eq("user_id", user.id)
       .is("deleted_at", null)
       .maybeSingle(),
-    supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle(),
+    supabase
+      .from("profiles")
+      .select("full_name, must_change_password")
+      .eq("id", user.id)
+      .maybeSingle(),
   ]);
   if (membershipRes.error) throw membershipRes.error;
   if (profileRes.error) throw profileRes.error;
@@ -47,6 +53,7 @@ async function fetchAuthContext(): Promise<AuthContext | null> {
     userId: user.id,
     email: user.email ?? "",
     fullName: profileRes.data?.full_name ?? "",
+    mustChangePassword: profileRes.data?.must_change_password ?? false,
     membership: m?.organization ? { role: m.role, organization: m.organization } : null,
   };
 }
@@ -88,6 +95,32 @@ export async function signOut(queryClient: QueryClient) {
   queryClient.clear();
 }
 
+export async function updateFullName(userId: string, fullName: string) {
+  const { error } = await supabase
+    .from("profiles")
+    .update({ full_name: fullName })
+    .eq("id", userId);
+  if (error) throw new Error(error.message);
+}
+
+/**
+ * Changement de mot de passe. On revérifie d'abord le mot de passe actuel : une session
+ * restée ouverte sur un poste partagé ne doit pas suffire à le changer.
+ * (Côté Supabase, l'option « Secure password change » renforce encore ce contrôle.)
+ */
+export async function changePassword(email: string, current: string, next: string) {
+  const check = await supabase.auth.signInWithPassword({ email, password: current });
+  if (check.error) {
+    throw new Error(
+      check.error.code === "invalid_credentials"
+        ? "Mot de passe actuel incorrect."
+        : translateAuthError(check.error),
+    );
+  }
+  const { error } = await supabase.auth.updateUser({ password: next });
+  if (error) throw new Error(translateAuthError(error));
+}
+
 /** Les pages qui redirigent après login n'acceptent qu'un chemin interne (anti open-redirect). */
 export function safeRedirectPath(value: unknown): string | undefined {
   return typeof value === "string" && value.startsWith("/") && !value.startsWith("//")
@@ -106,6 +139,8 @@ function translateAuthError(error: AuthError): string {
       return "Un compte existe déjà avec cet email.";
     case "weak_password":
       return "Mot de passe trop faible.";
+    case "same_password":
+      return "Le nouveau mot de passe doit être différent de l'actuel.";
     case "over_request_rate_limit":
     case "over_email_send_rate_limit":
       return "Trop de tentatives. Réessayez dans quelques minutes.";

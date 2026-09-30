@@ -100,6 +100,9 @@ function TeamPage() {
                   <span className="text-xs font-semibold">{ROLE_LABELS[m.role]}</span>
                 )}
 
+                {active && m.profile?.must_change_password && (
+                  <StatusBadge variant="pending">Mot de passe provisoire</StatusBadge>
+                )}
                 <StatusBadge variant={active ? "operational" : "neutral"}>
                   {active ? "Actif" : "Désactivé"}
                 </StatusBadge>

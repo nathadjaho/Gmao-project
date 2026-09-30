@@ -34,3 +34,24 @@ export const organizationSchema = z.object({
   name: z.string().trim().min(2, "2 caractères minimum").max(120, "120 caractères maximum"),
 });
 export type OrganizationInput = z.infer<typeof organizationSchema>;
+
+export const profileNameSchema = z.object({
+  fullName: z.string().trim().min(2, "2 caractères minimum").max(100, "100 caractères maximum"),
+});
+export type ProfileNameInput = z.infer<typeof profileNameSchema>;
+
+export const changePasswordSchema = z
+  .object({
+    current: z.string().min(1, "Mot de passe actuel requis"),
+    next: passwordSchema,
+    confirm: z.string(),
+  })
+  .refine((v) => v.next === v.confirm, {
+    path: ["confirm"],
+    message: "Les deux mots de passe diffèrent",
+  })
+  .refine((v) => v.next !== v.current, {
+    path: ["next"],
+    message: "Choisissez un mot de passe différent de l'actuel",
+  });
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;

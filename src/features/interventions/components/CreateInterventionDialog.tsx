@@ -36,7 +36,7 @@ type Props = {
 };
 
 const textareaClass =
-  "mt-1.5 w-full px-3 py-2 rounded-md border border-input bg-card text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent";
+  "mt-1.5 w-full px-3 py-2 rounded-md border border-input bg-card text-sm focus:outline-none focus:ring-2 focus:ring-ring/15 focus:border-primary";
 
 export function CreateInterventionDialog({ open, onOpenChange, equipmentId, onCreated }: Props) {
   const queryClient = useQueryClient();

@@ -6,16 +6,16 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen grid lg:grid-cols-[1fr_minmax(440px,520px)] bg-background">
       <div className="hidden lg:flex relative bg-primary text-primary-foreground p-12 flex-col justify-between overflow-hidden">
         <div className="absolute inset-0 grid-bg opacity-[0.06]" />
-        <div className="absolute -top-32 -right-32 size-96 rounded-full bg-accent/20 blur-3xl" />
+        <div className="absolute -top-32 -right-32 size-96 rounded-full bg-secondary blur-3xl" />
         <div className="absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-t from-primary to-transparent" />
 
         <div className="relative flex items-center gap-2.5">
           <div className="size-9 rounded-md bg-primary-foreground/10 border border-primary-foreground/20 flex items-center justify-center">
-            <ShieldCheck className="size-4 text-accent" strokeWidth={2.2} />
+            <ShieldCheck className="size-4 text-foreground" strokeWidth={2.2} />
           </div>
           <div className="leading-tight">
             <div className="text-base font-bold tracking-tight">
-              FORGE<span className="text-accent">OS</span>
+              FORGE<span className="text-foreground">OS</span>
             </div>
             <div className="text-[10px] uppercase tracking-[0.18em] text-primary-foreground/60">
               Maintenance Operations Platform
